@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation'
 import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
 import { listClientServices } from '@/lib/dashboard/services-query'
+import { listServiceAliases } from '@/lib/dashboard/service-alias-query'
 import { getMockBillingSummary } from '@/lib/dashboard/billing'
 import { DashboardLayout } from '@/components/dashboard/layout'
 import { TenantNotFound } from '@/components/shared/tenant-not-found'
 import { ServicesPricingManager } from '@/components/dashboard/services-pricing-manager'
+import { ServiceAliasManager } from '@/components/dashboard/service-alias-manager'
 import { BillingStatusCard } from '@/components/dashboard/billing-status-card'
 import {
   AppearanceSection,
@@ -32,9 +34,10 @@ export default async function SettingsPage() {
   const domain = tenant.custom_domain || `${tenant.subdomain || tenant.slug}.${appDomain}`
 
   // Parallel data fetch for Settings sections
-  const [initialServices, billing] = await Promise.all([
+  const [initialServices, billing, initialAliases] = await Promise.all([
     listClientServices(tenant.id),
     Promise.resolve(getMockBillingSummary(tenant.id)),
+    listServiceAliases(tenant.id),
   ])
 
   return (
@@ -55,12 +58,26 @@ export default async function SettingsPage() {
             <div>
               <h2 className="text-sm font-semibold text-[var(--brand-text)]">Services & Pricing</h2>
               <p className="text-xs text-[var(--brand-muted)] mt-0.5">
-                Define the services your practice offers. Prices are used for revenue attribution in the dashboard.
+                Define the services your practice offers. Prices power revenue attribution, ROI reporting, and service performance insights across the dashboard.
               </p>
             </div>
             <ServicesPricingManager
               initialServices={initialServices}
               currency={tenant.currency}
+            />
+          </section>
+
+          {/* Service Aliases — improve attribution by mapping common terms to services */}
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--brand-text)]">Service Aliases</h2>
+              <p className="text-xs text-[var(--brand-muted)] mt-0.5">
+                Map common terms (e.g. &ldquo;tox&rdquo;, &ldquo;lip filler&rdquo;) to your services for better attribution in call logs and reports.
+              </p>
+            </div>
+            <ServiceAliasManager
+              initialAliases={initialAliases}
+              services={initialServices}
             />
           </section>
 

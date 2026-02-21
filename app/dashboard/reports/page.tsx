@@ -8,6 +8,8 @@ import { RoiSummaryCard } from '@/components/dashboard/roi-summary-card'
 import { BookingProofTable } from '@/components/dashboard/booking-proof-table'
 import { MissedCallRecoveryCard } from '@/components/dashboard/missed-call-recovery-card'
 import { ExecutiveReportCard } from '@/components/dashboard/executive-report-card'
+import { ServicePerformanceCard } from '@/components/dashboard/service-performance-card'
+import { DataQualityCard } from '@/components/dashboard/data-quality-card'
 import { ReportsPageHeader } from '@/components/dashboard/reports-page-header'
 import type { BookedNotification } from '@/components/dashboard/notification-bell'
 
@@ -64,6 +66,19 @@ export default async function ReportsPage() {
             tenantName={tenant.name}
           />
         </div>
+
+        {/* Per-service performance breakdown */}
+        <ServicePerformanceCard
+          callLogs={callLogs}
+          services={activeServices}
+          currency={tenant.currency}
+        />
+
+        {/* Data quality / trust center — makes reporting defensible */}
+        <DataQualityCard
+          callLogs={callLogs}
+          services={activeServices}
+        />
 
         {/* Booking proof table — full width */}
         <BookingProofTable

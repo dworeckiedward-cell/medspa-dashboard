@@ -288,6 +288,21 @@ export interface ClientService {
   updatedAt: string
 }
 
+// ─── Service Aliases (migration 010) ──────────────────────────────────────
+
+export interface ServiceAlias {
+  id: string
+  tenantId: string
+  aliasText: string
+  serviceId: string
+  isActive: boolean
+  priority: number
+  createdAt: string
+  updatedAt: string
+  /** Joined service name (populated on read) */
+  serviceName?: string
+}
+
 // ─── Billing ──────────────────────────────────────────────────────────────────
 
 export type BillingStatus =

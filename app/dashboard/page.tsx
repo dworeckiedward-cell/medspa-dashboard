@@ -6,6 +6,9 @@ import { listClientIntegrations } from '@/lib/integrations/crm/config-query'
 import { computeHealthSummary } from '@/lib/integrations/crm/health'
 import { listCrmDeliveryLogs } from '@/lib/integrations/crm/query'
 import { getMockBillingSummary } from '@/lib/dashboard/billing'
+import { deriveExceptions } from '@/lib/dashboard/exceptions'
+import { deriveRecommendedActions } from '@/lib/dashboard/recommended-actions'
+import { listServiceAliases } from '@/lib/dashboard/service-alias-query'
 import { DashboardLayout } from '@/components/dashboard/layout'
 import { DashboardTabs } from '@/components/dashboard/dashboard-tabs'
 import { TenantNotFound } from '@/components/shared/tenant-not-found'
@@ -65,6 +68,25 @@ export default async function DashboardPage() {
   const healthSummary = computeHealthSummary(integrations, deliveryLogs)
   const failedDeliveries = deliveryLogs.filter((l) => !l.success).length
 
+  // Alias count (for recommended actions — graceful if migration not applied)
+  const aliases = await listServiceAliases(tenant.id)
+
+  // Operational exceptions + recommended actions (pure computation, no IO)
+  const exceptions = deriveExceptions({
+    callLogs,
+    deliveryLogs,
+    integrations,
+    servicesCount: activeServices.length,
+  })
+
+  const recommendedActions = deriveRecommendedActions({
+    callLogs,
+    services: activeServices,
+    integrations,
+    deliveryLogs,
+    aliasCount: aliases.length,
+  })
+
   return (
     <DashboardLayout
       tenant={tenant}
@@ -84,6 +106,8 @@ export default async function DashboardPage() {
         integrationsCount={integrations.length}
         integrationsHealthy={healthSummary.activeIntegrations}
         billing={billing}
+        exceptions={exceptions}
+        recommendedActions={recommendedActions}
       />
     </DashboardLayout>
   )

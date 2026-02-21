@@ -8,6 +8,7 @@ import { BrandedLoader } from './loading-overlay'
 import { CommandPalette } from './command-palette'
 import { ToastProvider } from './toast-provider'
 import { PresentationModeProvider, usePresentationMode } from '@/lib/dashboard/presentation-mode'
+import { SupportViewBanner } from '@/components/ops/support-view-banner'
 import { cn } from '@/lib/utils'
 
 interface DashboardLayoutProps {
@@ -59,23 +60,28 @@ function DashboardShell({
   const { isPresenting } = usePresentationMode()
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--brand-bg)] transition-colors duration-200">
-      {/* Sidebar — collapses in presentation mode */}
-      {!isPresenting && <Sidebar tenant={tenant} />}
+    <div className="flex flex-col h-screen overflow-hidden bg-[var(--brand-bg)] transition-colors duration-200">
+      {/* Support view banner — shown when operator is viewing in support mode */}
+      <SupportViewBanner tenantName={tenant.name} />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header
-          tenant={tenant}
-          followUpCount={followUpCount}
-          bookedNotificationCount={bookedNotificationCount}
-          bookedNotifications={bookedNotifications}
-        />
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar — collapses in presentation mode */}
+        {!isPresenting && <Sidebar tenant={tenant} />}
 
-        <main className={cn(
-          'flex-1 overflow-y-auto scroll-smooth scrollbar-thin',
-        )}>
-          {children}
-        </main>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header
+            tenant={tenant}
+            followUpCount={followUpCount}
+            bookedNotificationCount={bookedNotificationCount}
+            bookedNotifications={bookedNotifications}
+          />
+
+          <main className={cn(
+            'flex-1 overflow-y-auto scroll-smooth scrollbar-thin',
+          )}>
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   )

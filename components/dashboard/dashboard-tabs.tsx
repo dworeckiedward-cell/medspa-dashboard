@@ -27,9 +27,15 @@ import { QuickActionsStrip } from './quick-actions-strip'
 import { SystemStatusCard } from './system-status-card'
 import { OnboardingWizard } from './onboarding-wizard'
 import { NextActionCard } from './next-action-card'
+import { NeedsAttentionCard } from './needs-attention-card'
+import { RecommendedActionsCard } from './recommended-actions-card'
+import { ServicePerformanceCard } from './service-performance-card'
+import { DataQualityCard } from './data-quality-card'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { DashboardMetrics, CallLog, Client } from '@/types/database'
 import type { ClientService } from '@/lib/types/domain'
+import type { DashboardException } from '@/lib/dashboard/exceptions'
+import type { RecommendedAction } from '@/lib/dashboard/recommended-actions'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +54,10 @@ interface DashboardTabsProps {
   integrationsHealthy?: number
   /** Billing summary (for system status card) */
   billing?: import('@/lib/types/domain').BillingSummary | null
+  /** Operational exceptions for Needs Attention card */
+  exceptions?: DashboardException[]
+  /** Recommended actions for operator guidance */
+  recommendedActions?: RecommendedAction[]
 }
 
 type MainTab = 'overview' | 'inbound' | 'outbound'
@@ -183,6 +193,8 @@ function OverviewTab({
   integrationsCount,
   integrationsHealthy,
   billing,
+  exceptions,
+  recommendedActions,
 }: DashboardTabsProps & { onSelectCall: (log: CallLog) => void }) {
   return (
     <div className="space-y-6 p-6 animate-fade-in">
@@ -201,6 +213,16 @@ function OverviewTab({
         tenantSlug={tenant.slug}
         failedDeliveries={failedDeliveries}
       />
+
+      {/* Operational alerts — surfaces exceptions that need attention */}
+      {exceptions && exceptions.length > 0 && (
+        <NeedsAttentionCard exceptions={exceptions} />
+      )}
+
+      {/* AI-driven recommended actions */}
+      {recommendedActions && recommendedActions.length > 0 && (
+        <RecommendedActionsCard actions={recommendedActions} />
+      )}
 
       <KpiCards metrics={metrics} currency={currency} />
 
@@ -227,10 +249,22 @@ function OverviewTab({
         <WeeklyReportCard callLogs={callLogs} currency={currency} />
       </div>
 
+      {/* Service performance insights (keyword-matched) */}
+      {services.length > 0 && (
+        <ServicePerformanceCard callLogs={callLogs} services={services} currency={currency} />
+      )}
+
       {/* Top services (only shown when services are configured) */}
       {services.length > 0 && (
         <TopServicesCard callLogs={callLogs} services={services} currency={currency} />
       )}
+
+      {/* Data Quality / Trust Center */}
+      <DataQualityCard
+        callLogs={callLogs}
+        services={services}
+        hasIntegrations={(integrationsCount ?? 0) > 0}
+      />
 
       <CallLogsTable
         initialData={callLogs}
