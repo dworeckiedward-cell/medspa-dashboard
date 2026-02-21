@@ -54,11 +54,12 @@ function CmdKTrigger() {
     <button
       type="button"
       onClick={handleClick}
-      className="hidden md:flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:border-[var(--brand-text)]/20 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-bg)]"
+      role="button"
+      className="hidden md:flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:border-[var(--brand-text)]/20 hover:bg-[var(--brand-border)]/30 transition-colors duration-150 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-bg)]"
       aria-label="Open command palette"
     >
       <Search className="h-3.5 w-3.5" />
-      <span className="opacity-70">Search…</span>
+      <span className="opacity-70">Search or jump to&hellip;</span>
       <kbd className="ml-1 rounded border border-[var(--brand-border)] bg-[var(--brand-bg)] px-1.5 py-0.5 text-[10px] font-mono leading-none text-[var(--brand-muted)]">
         {shortcut}
       </kbd>

@@ -2,10 +2,40 @@
 
 import { useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ServifyMark } from '@/components/branding/servify-mark'
+
+// ── Login copy variants ─────────────────────────────────────────────────────
+// Swap ACTIVE_COPY to use a different variant. Only one is rendered at a time.
+
+const COPY_VARIANTS = {
+  /** Default — "AI Infrastructure" positioning */
+  default: {
+    headline: 'Your AI infrastructure,',
+    headlineAccent: 'one login away.',
+    subtitle:
+      'Access your dashboard to track performance, monitor calls, and prove ROI — in real time.',
+  },
+  /** ALT A — Hormozi-style, results-focused */
+  // altA: {
+  //   headline: 'Welcome back.',
+  //   headlineAccent: '',
+  //   subtitle:
+  //     'Your AI receptionist has been working while you were away. Sign in to see the results.',
+  // },
+  /** ALT B — Linear/Stripe vibe, product-focused */
+  // altB: {
+  //   headline: 'Sign in to Servify',
+  //   headlineAccent: '',
+  //   subtitle:
+  //     'Monitor your AI systems, review captured leads, and track every dollar earned.',
+  // },
+} as const
+
+const ACTIVE_COPY = COPY_VARIANTS.default
 
 // ── Login page ──────────────────────────────────────────────────────────────
 // Premium split-screen layout:
@@ -53,7 +83,7 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex">
       {/* ── Left hero panel ─────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#09090B] to-[#0F172A]">
         {/* Dot grid texture */}
         <div
           className="absolute inset-0 opacity-[0.15]"
@@ -78,26 +108,29 @@ export default function LoginPage() {
           {/* Top — brand mark */}
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
-              <Sparkles className="h-5 w-5 text-blue-400" />
+              <ServifyMark variant="icon" className="text-blue-400" />
             </div>
             <div>
               <p className="text-white font-semibold text-lg leading-tight">Servify</p>
-              <p className="text-white/50 text-xs leading-tight">AI Receptionist</p>
+              <p className="text-white/50 text-xs leading-tight">AI Infrastructure</p>
             </div>
           </div>
 
           {/* Center — value proposition */}
           <div className="space-y-6 max-w-md">
             <h1 className="text-4xl font-bold text-white leading-tight login-hero-enter">
-              Your AI receptionist
-              <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400">
-                never misses a call.
-              </span>
+              {ACTIVE_COPY.headline}
+              {ACTIVE_COPY.headlineAccent && (
+                <>
+                  <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400">
+                    {ACTIVE_COPY.headlineAccent}
+                  </span>
+                </>
+              )}
             </h1>
             <p className="text-white/60 text-base leading-relaxed login-hero-enter login-hero-delay-1">
-              Book more appointments, recover missed calls, and prove ROI —
-              all on autopilot. Your dashboard shows every dollar earned.
+              {ACTIVE_COPY.subtitle}
             </p>
 
             {/* Stats row */}
@@ -136,19 +169,19 @@ export default function LoginPage() {
           {/* Mobile-only brand mark */}
           <div className="lg:hidden flex items-center gap-3 justify-center">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-primary)]/10 border border-[var(--brand-border)]">
-              <Sparkles className="h-5 w-5 text-[var(--brand-primary)]" />
+              <ServifyMark variant="icon" className="text-[var(--brand-primary)]" />
             </div>
             <div>
               <p className="text-[var(--brand-text)] font-semibold text-lg leading-tight">Servify</p>
-              <p className="text-[var(--brand-muted)] text-xs leading-tight">AI Receptionist</p>
+              <p className="text-[var(--brand-muted)] text-xs leading-tight">AI Infrastructure</p>
             </div>
           </div>
 
           {/* Heading */}
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold text-[var(--brand-text)]">Welcome back</h2>
+            <h2 className="text-2xl font-bold text-[var(--brand-text)]">Sign in to Servify</h2>
             <p className="text-sm text-[var(--brand-muted)]">
-              Sign in to your dashboard to see how your AI receptionist is performing.
+              Access your dashboard to track performance and prove ROI.
             </p>
           </div>
 
@@ -268,36 +301,39 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Social login scaffold */}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full h-11 text-sm border-[var(--brand-border)] text-[var(--brand-text)] hover:bg-[var(--brand-surface)]"
-            disabled={loading}
-            onClick={() => {
-              // TODO: wire up Google OAuth via Supabase
-            }}
-          >
-            <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
-                fill="#4285F4"
-              />
-              <path
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                fill="#34A853"
-              />
-              <path
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                fill="#FBBC05"
-              />
-              <path
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                fill="#EA4335"
-              />
-            </svg>
-            Google
-          </Button>
+          {/* Social login — Google OAuth (not yet configured) */}
+          <div className="relative group">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-11 text-sm border-[var(--brand-border)] text-[var(--brand-muted)] cursor-not-allowed opacity-60"
+              disabled
+              aria-label="Sign in with Google (coming soon)"
+            >
+              <svg className="h-4 w-4 mr-2 grayscale" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                  fill="#4285F4"
+                />
+                <path
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  fill="#34A853"
+                />
+                <path
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                  fill="#FBBC05"
+                />
+                <path
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  fill="#EA4335"
+                />
+              </svg>
+              Google
+            </Button>
+            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[var(--brand-surface)] border border-[var(--brand-border)] px-2 py-0.5 text-[10px] text-[var(--brand-muted)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              SSO coming soon
+            </span>
+          </div>
 
           {/* Footer */}
           <p className="text-center text-xs text-[var(--brand-muted)]">
@@ -315,7 +351,7 @@ export default function LoginPage() {
 
           {/* Powered by */}
           <div className="flex items-center justify-center gap-1.5 opacity-50 hover:opacity-80 transition-opacity">
-            <Sparkles className="h-3 w-3 text-[var(--brand-accent)]" />
+            <ServifyMark variant="inline" className="text-[var(--brand-accent)]" />
             <span className="text-[10px] text-[var(--brand-muted)]">Powered by Servify</span>
           </div>
         </div>
