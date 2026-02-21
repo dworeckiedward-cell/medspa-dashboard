@@ -34,6 +34,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getTenantBySlug } from '@/lib/tenant/get-tenant-config'
+import { guardDevRoute } from '@/lib/api-utils'
 import { deliverCrmEvent } from '@/lib/integrations/crm/delivery-service'
 import type { IntegrationProvider } from '@/lib/types/domain'
 import type {
@@ -176,6 +177,11 @@ function buildSamplePayload(eventType: string): Record<string, unknown> {
 // ── Route handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Layer 1: global dev-route gate (ENABLE_DEV_ROUTES / NODE_ENV)
+  const blocked = guardDevRoute()
+  if (blocked) return blocked
+
+  // Layer 2: per-request key auth (x-dev-action-key header)
   if (!isAuthorised(req)) {
     return NextResponse.json(
       {

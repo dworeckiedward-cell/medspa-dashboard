@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
+import { guardDevRoute } from '@/lib/api-utils'
 import { getCrmDeliveryLogById } from '@/lib/integrations/crm/query'
 import { listEnabledIntegrationConfigs } from '@/lib/integrations/crm/config-query'
 import { deliverCrmEvent } from '@/lib/integrations/crm/delivery-service'
@@ -22,6 +23,9 @@ const BodySchema = z.object({
 })
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const blocked = guardDevRoute()
+  if (blocked) return blocked
+
   const { tenant } = await resolveTenantAccess()
   if (!tenant) {
     return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
