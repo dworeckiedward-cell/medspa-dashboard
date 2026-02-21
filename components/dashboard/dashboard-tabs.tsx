@@ -19,6 +19,9 @@ import { KpiCards } from './kpi-cards'
 import { RoiChart } from './roi-chart'
 import { CallLogsTable } from './call-logs-table'
 import { TenantInfoCard } from './tenant-info-card'
+import { CallDetailPanel } from './call-detail-panel'
+import { ConversionTimeline } from './conversion-timeline'
+import { WeeklyReportCard } from './weekly-report-card'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { DashboardMetrics, CallLog, Client } from '@/types/database'
 
@@ -152,7 +155,8 @@ function OverviewTab({
   currency,
   clientId,
   tenant,
-}: DashboardTabsProps) {
+  onSelectCall,
+}: DashboardTabsProps & { onSelectCall: (log: CallLog) => void }) {
   return (
     <div className="space-y-6 p-6 animate-fade-in">
       <KpiCards metrics={metrics} currency={currency} />
@@ -166,7 +170,18 @@ function OverviewTab({
         </div>
       </div>
 
-      <CallLogsTable initialData={callLogs} totalCount={totalCount} clientId={clientId} />
+      {/* Conversion funnel + weekly report */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ConversionTimeline callLogs={callLogs} />
+        <WeeklyReportCard callLogs={callLogs} currency={currency} />
+      </div>
+
+      <CallLogsTable
+        initialData={callLogs}
+        totalCount={totalCount}
+        clientId={clientId}
+        onSelectCall={onSelectCall}
+      />
     </div>
   )
 }
@@ -178,15 +193,21 @@ function InboundTab({
   totalCount,
   currency,
   clientId,
-}: Pick<DashboardTabsProps, 'callLogs' | 'totalCount' | 'currency' | 'clientId'>) {
+  onSelectCall,
+}: Pick<DashboardTabsProps, 'callLogs' | 'totalCount' | 'currency' | 'clientId'> & {
+  onSelectCall: (log: CallLog) => void
+}) {
   const { t } = useLanguage()
 
-  // TODO (backend): filter by an explicit `direction = 'inbound'` field once
-  // that column is added to call_logs. For now we use call_type as a proxy —
-  // 'inbound_inquiry' covers the primary inbound pattern. All other types are
-  // also included since direction is not yet tracked.
+  // Use direction field when available (migration 004+).
+  // Fall back to call_type proxy for existing rows where direction is NULL.
   const inboundLogs = useMemo(
-    () => callLogs.filter((c) => c.call_type === 'inbound_inquiry' || c.is_lead),
+    () =>
+      callLogs.filter((c) => {
+        if (c.direction !== null && c.direction !== undefined) return c.direction === 'inbound'
+        // Backward compat: inbound_inquiry is always inbound; is_lead covers other patterns
+        return c.call_type === 'inbound_inquiry' || c.is_lead
+      }),
     [callLogs],
   )
 
@@ -239,6 +260,7 @@ function InboundTab({
         initialData={inboundLogs}
         totalCount={inboundLogs.length}
         clientId={clientId}
+        onSelectCall={onSelectCall}
       />
     </div>
   )
@@ -250,7 +272,10 @@ function OutboundTab({
   callLogs,
   currency,
   clientId,
-}: Pick<DashboardTabsProps, 'callLogs' | 'currency' | 'clientId'>) {
+  onSelectCall,
+}: Pick<DashboardTabsProps, 'callLogs' | 'currency' | 'clientId'> & {
+  onSelectCall: (log: CallLog) => void
+}) {
   const { t } = useLanguage()
   const [subTab, setSubTab] = useState<OutboundSubTab>('speed-to-lead')
 
@@ -265,7 +290,7 @@ function OutboundTab({
       <TabBar tabs={subTabs} active={subTab} onSelect={setSubTab} size="sm" />
 
       {subTab === 'speed-to-lead' && (
-        <SpeedToLeadTab callLogs={callLogs} currency={currency} clientId={clientId} />
+        <SpeedToLeadTab callLogs={callLogs} currency={currency} clientId={clientId} onSelectCall={onSelectCall} />
       )}
 
       {subTab === 'reminders' && (
@@ -284,14 +309,25 @@ function SpeedToLeadTab({
   callLogs,
   currency,
   clientId,
-}: Pick<DashboardTabsProps, 'callLogs' | 'currency' | 'clientId'>) {
+  onSelectCall,
+}: Pick<DashboardTabsProps, 'callLogs' | 'currency' | 'clientId'> & {
+  onSelectCall: (log: CallLog) => void
+}) {
   const { t } = useLanguage()
 
-  // TODO (backend): real outbound / speed-to-lead data requires:
-  //   - `direction` field on call_logs to identify outbound callbacks
-  //   - `response_time_seconds` metric for true speed-to-lead tracking
-  // For MVP we surface leads that still need follow-up as a proxy.
-  const leads = callLogs.filter((c) => c.is_lead)
+  // Use direction field when available; fall back to is_lead proxy for old rows.
+  // Speed-to-lead tab shows outbound calls — i.e. callbacks to leads.
+  const outboundLogs = useMemo(
+    () =>
+      callLogs.filter((c) => {
+        if (c.direction !== null && c.direction !== undefined) return c.direction === 'outbound'
+        // Backward compat: treat leads without explicit direction as outbound candidates
+        return c.is_lead
+      }),
+    [callLogs],
+  )
+
+  const leads = outboundLogs.length > 0 ? outboundLogs : callLogs.filter((c) => c.is_lead)
   const followUpNeeded = leads.filter((c) => c.human_followup_needed)
   const booked = leads.filter((c) => c.is_booked)
   const leadConversion = leads.length > 0 ? Math.round((booked.length / leads.length) * 100) : 0
@@ -349,6 +385,7 @@ function SpeedToLeadTab({
             initialData={followUpNeeded}
             totalCount={followUpNeeded.length}
             clientId={clientId}
+            onSelectCall={onSelectCall}
           />
         </CardContent>
       </Card>
@@ -362,6 +399,7 @@ export function DashboardTabs(props: DashboardTabsProps) {
   const { metrics, callLogs, totalCount, currency, clientId, tenant } = props
   const { t } = useLanguage()
   const [tab, setTab] = useState<MainTab>('overview')
+  const [selectedCall, setSelectedCall] = useState<CallLog | null>(null)
 
   const mainTabs: { key: MainTab; label: string }[] = [
     { key: 'overview', label: t.dashboard.overview },
@@ -370,27 +408,33 @@ export function DashboardTabs(props: DashboardTabsProps) {
   ]
 
   return (
-    <div className="flex flex-col min-h-0">
-      {/* Main tab navigation */}
-      <div className="px-6 bg-[var(--brand-surface)] border-b border-[var(--brand-border)] transition-colors duration-200">
-        <TabBar tabs={mainTabs} active={tab} onSelect={setTab} />
-      </div>
+    <>
+      {/* Call detail side panel — global, outside tab container so it overlays everything */}
+      <CallDetailPanel log={selectedCall} onClose={() => setSelectedCall(null)} />
 
-      {/* Tab panels */}
-      {tab === 'overview' && (
-        <OverviewTab {...props} />
-      )}
-      {tab === 'inbound' && (
-        <InboundTab
-          callLogs={callLogs}
-          totalCount={totalCount}
-          currency={currency}
-          clientId={clientId}
-        />
-      )}
-      {tab === 'outbound' && (
-        <OutboundTab callLogs={callLogs} currency={currency} clientId={clientId} />
-      )}
-    </div>
+      <div className="flex flex-col min-h-0">
+        {/* Main tab navigation */}
+        <div className="px-6 bg-[var(--brand-surface)] border-b border-[var(--brand-border)] transition-colors duration-200">
+          <TabBar tabs={mainTabs} active={tab} onSelect={setTab} />
+        </div>
+
+        {/* Tab panels */}
+        {tab === 'overview' && (
+          <OverviewTab {...props} onSelectCall={setSelectedCall} />
+        )}
+        {tab === 'inbound' && (
+          <InboundTab
+            callLogs={callLogs}
+            totalCount={totalCount}
+            currency={currency}
+            clientId={clientId}
+            onSelectCall={setSelectedCall}
+          />
+        )}
+        {tab === 'outbound' && (
+          <OutboundTab callLogs={callLogs} currency={currency} clientId={clientId} onSelectCall={setSelectedCall} />
+        )}
+      </div>
+    </>
   )
 }

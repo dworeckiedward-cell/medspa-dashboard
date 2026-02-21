@@ -3,6 +3,7 @@ import type { BookedNotification } from './notification-bell'
 import { Sidebar } from './sidebar'
 import { Header } from './header'
 import { BrandedLoader } from './loading-overlay'
+import { CommandPalette } from './command-palette'
 
 interface DashboardLayoutProps {
   tenant: Client
@@ -27,6 +28,9 @@ export function DashboardLayout({
         logoUrl={tenant.logo_url}
         brandColor={tenant.brand_color ?? '#2563EB'}
       />
+
+      {/* Cmd+K command palette — global, outside the layout grid */}
+      <CommandPalette tenant={tenant} />
 
       <div className="flex h-screen overflow-hidden bg-[var(--brand-bg)] transition-colors duration-200">
         <Sidebar tenant={tenant} />

@@ -1,6 +1,50 @@
 // ─── Database types — mirrors Supabase schema ─────────────────────────────────
 // TODO: Replace with `supabase gen types typescript --project-id <id>` in production
 
+// ── Enum-like call log discriminators ────────────────────────────────────────
+
+export type CallDirection = 'inbound' | 'outbound'
+
+export type OutboundType = 'speed_to_lead' | 'reminder' | 'reactivation' | 'campaign'
+
+export type CallDisposition =
+  | 'booked'
+  | 'follow_up'
+  | 'not_interested'
+  | 'no_answer'
+  | 'voicemail'
+  | 'spam'
+  | 'other'
+
+export type CallSentiment = 'positive' | 'neutral' | 'negative'
+
+export type CallIntent =
+  | 'book_appointment'
+  | 'inquiry'
+  | 'cancel'
+  | 'reschedule'
+  | 'complaint'
+  | 'other'
+
+export const CALL_DISPOSITION_LABELS: Record<CallDisposition, string> = {
+  booked: 'Booked',
+  follow_up: 'Follow-up',
+  not_interested: 'Not interested',
+  no_answer: 'No answer',
+  voicemail: 'Voicemail',
+  spam: 'Spam',
+  other: 'Other',
+}
+
+export const CALL_INTENT_LABELS: Record<CallIntent, string> = {
+  book_appointment: 'Book appointment',
+  inquiry: 'Inquiry',
+  cancel: 'Cancel',
+  reschedule: 'Reschedule',
+  complaint: 'Complaint',
+  other: 'Other',
+}
+
 export interface Client {
   id: string
   name: string
@@ -68,6 +112,27 @@ export interface CallLog {
   raw_payload: Record<string, unknown> | null
   created_at: string
   updated_at: string
+
+  // ── Fields added in migration 004 (nullable for backward compat) ───────────
+  direction: CallDirection | null              // 'inbound' | 'outbound'
+  outbound_type: OutboundType | null          // outbound sub-classification
+  response_time_seconds: number | null        // seconds from lead → first contact
+  contacted_at: string | null                 // ISO timestamp of first contact
+  ai_summary: string | null                   // structured AI-generated summary
+  ai_summary_json: Record<string, unknown> | null  // full structured AI output
+  disposition: CallDisposition | null         // call outcome
+  sentiment: CallSentiment | null             // caller sentiment
+  intent: CallIntent | null                   // primary caller intent
+  booked_at: string | null                    // ISO timestamp of booking
+  appointment_datetime: string | null         // scheduled appointment time
+  lead_source: string | null                  // e.g. 'website', 'google'
+  agent_provider: string | null               // e.g. 'retell', 'vapi'
+  agent_name: string | null                   // agent config name
+
+  // ── Fields added in migration 006 (AI summary pipeline) ───────────────────
+  /** 'pending' | 'complete' | 'failed' | 'not_applicable' */
+  summary_status: string | null
+  summary_updated_at: string | null           // ISO 8601 timestamp
 }
 
 export interface ServicesCatalog {
@@ -108,6 +173,27 @@ export interface ChartDataPoint {
   inquiries: number      // sum inquiries_value
   booked: number         // sum booked_value
   potential: number      // sum potential_revenue
+}
+
+// ─── CRM delivery log (migration 005) ────────────────────────────────────────
+
+export interface CrmDeliveryLog {
+  id: string
+  client_id: string
+  integration_provider: string
+  event_type: string
+  event_id: string | null
+  payload: Record<string, unknown>
+  request_url: string | null
+  request_headers_masked: Record<string, unknown> | null
+  http_method: string
+  response_status: number | null
+  response_body_preview: string | null
+  latency_ms: number | null
+  success: boolean
+  error_code: string | null
+  error_message: string | null
+  created_at: string
 }
 
 // ─── Tenant context (passed via request headers set by middleware) ─────────────

@@ -37,9 +37,17 @@ const RetellWebhookSchema = z.object({
     .enum(['inbound_inquiry', 'booking', 'reschedule', 'cancellation', 'support', 'spam', 'other'])
     .optional(),
 
+  // Call direction — explicit override (metadata takes priority)
+  direction: z.enum(['inbound', 'outbound']).optional(),
+
+  // Agent metadata (top-level, can also be in metadata)
+  agent_provider: z.string().optional(),
+  agent_name: z.string().optional(),
+
   // Structured AI analysis — populated by n8n post-processing or Retell custom analysis
   metadata: z
     .object({
+      // Existing fields
       semantic_title: z.string().optional(),
       caller_name: z.string().optional(),
       call_type: z.string().optional(),
@@ -53,6 +61,26 @@ const RetellWebhookSchema = z.object({
       human_followup_reason: z.string().optional(),
       tags: z.array(z.string()).optional(),
       client_slug: z.string().optional(), // alt location for tenant routing
+
+      // New fields (migration 004)
+      direction: z.enum(['inbound', 'outbound']).optional(),
+      outbound_type: z.enum(['speed_to_lead', 'reminder', 'reactivation', 'campaign']).optional(),
+      response_time_seconds: z.number().int().min(0).optional(),
+      contacted_at: z.string().optional(),   // ISO 8601
+      ai_summary: z.string().optional(),
+      ai_summary_json: z.record(z.unknown()).optional(),
+      disposition: z
+        .enum(['booked', 'follow_up', 'not_interested', 'no_answer', 'voicemail', 'spam', 'other'])
+        .optional(),
+      sentiment: z.enum(['positive', 'neutral', 'negative']).optional(),
+      intent: z
+        .enum(['book_appointment', 'inquiry', 'cancel', 'reschedule', 'complaint', 'other'])
+        .optional(),
+      booked_at: z.string().optional(),          // ISO 8601
+      appointment_datetime: z.string().optional(), // ISO 8601
+      lead_source: z.string().optional(),
+      agent_provider: z.string().optional(),
+      agent_name: z.string().optional(),
     })
     .optional(),
 }).passthrough() // Store unknown fields in raw_payload without rejecting
@@ -156,6 +184,30 @@ export async function POST(request: NextRequest) {
     human_followup_reason: meta.human_followup_reason ?? null,
     tags: meta.tags ?? [],
     raw_payload: rawBody, // Store full original payload for debugging
+
+    // ── New fields (migration 004) ────────────────────────────────────────────
+    // direction: metadata wins over top-level; fall back to inference from call_type
+    direction:
+      meta.direction ??
+      payload.direction ??
+      ((meta.call_type ?? payload.call_type) === 'inbound_inquiry' ? 'inbound' : null),
+    outbound_type: meta.outbound_type ?? null,
+    response_time_seconds: meta.response_time_seconds ?? null,
+    contacted_at: meta.contacted_at ?? null,
+    ai_summary: meta.ai_summary ?? null,
+    ai_summary_json: meta.ai_summary_json ?? null,
+    // disposition: explicit wins; infer 'booked' if is_booked; infer 'spam' from call_type
+    disposition:
+      meta.disposition ??
+      (meta.is_booked ? 'booked' : null) ??
+      ((meta.call_type ?? payload.call_type) === 'spam' ? 'spam' : null),
+    sentiment: meta.sentiment ?? null,
+    intent: meta.intent ?? null,
+    booked_at: meta.booked_at ?? null,
+    appointment_datetime: meta.appointment_datetime ?? null,
+    lead_source: meta.lead_source ?? null,
+    agent_provider: meta.agent_provider ?? payload.agent_provider ?? null,
+    agent_name: meta.agent_name ?? payload.agent_name ?? null,
   }
 
   // ── Write to DB: upsert if external_call_id known, insert otherwise ────────

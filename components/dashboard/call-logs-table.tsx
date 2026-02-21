@@ -2,7 +2,17 @@
 
 import { useState, useMemo, useEffect, Fragment } from 'react'
 import { format, parseISO } from 'date-fns'
-import { Search, Phone, Play, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import {
+  Search,
+  Phone,
+  Play,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -23,16 +33,25 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCurrency, formatDuration } from '@/lib/utils'
-import type { CallLog, CallType } from '@/types/database'
-import { CALL_TYPE_LABELS } from '@/types/database'
+import type { CallLog, CallType, CallDisposition, CallSentiment } from '@/types/database'
+import {
+  CALL_TYPE_LABELS,
+  CALL_DISPOSITION_LABELS,
+  CALL_INTENT_LABELS,
+} from '@/types/database'
 
 interface CallLogsTableProps {
   initialData: CallLog[]
   totalCount: number
   clientId: string
+  /** When provided, row clicks open the detail panel instead of inline-expanding. */
+  onSelectCall?: (log: CallLog) => void
 }
 
-const callTypeColors: Record<string, 'success' | 'brand' | 'warning' | 'destructive' | 'muted' | 'accent'> = {
+const callTypeColors: Record<
+  string,
+  'success' | 'brand' | 'warning' | 'destructive' | 'muted' | 'accent'
+> = {
   booking: 'success',
   inbound_inquiry: 'brand',
   reschedule: 'accent',
@@ -42,30 +61,90 @@ const callTypeColors: Record<string, 'success' | 'brand' | 'warning' | 'destruct
   other: 'muted',
 }
 
+const dispositionColors: Record<
+  CallDisposition,
+  'success' | 'brand' | 'warning' | 'destructive' | 'muted' | 'accent'
+> = {
+  booked: 'success',
+  follow_up: 'warning',
+  not_interested: 'muted',
+  no_answer: 'muted',
+  voicemail: 'muted',
+  spam: 'destructive',
+  other: 'muted',
+}
+
+const sentimentStyle: Record<CallSentiment, { label: string; className: string }> = {
+  positive: { label: 'Positive', className: 'text-emerald-600 dark:text-emerald-400' },
+  neutral:  { label: 'Neutral',  className: 'text-[var(--brand-muted)]' },
+  negative: { label: 'Negative', className: 'text-rose-600 dark:text-rose-400' },
+}
+
 type SortKey = 'created_at' | 'potential_revenue' | 'duration_seconds'
 
 const PAGE_SIZE = 20
 
-export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
+export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall }: CallLogsTableProps) {
+  // ── Persist filters in localStorage, keyed by clientId ────────────────────
+  const storageKey = `call-logs-filters:${clientId}`
+
+  function loadFilters() {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = window.localStorage.getItem(storageKey)
+      return raw ? (JSON.parse(raw) as { type: string; booked: string; direction: string }) : null
+    } catch {
+      return null
+    }
+  }
+
+  const saved = loadFilters()
+
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState<string>('all')
-  const [filterBooked, setFilterBooked] = useState<string>('all')
+  const [filterType, setFilterType] = useState<string>(saved?.type ?? 'all')
+  const [filterBooked, setFilterBooked] = useState<string>(saved?.booked ?? 'all')
+  const [filterDirection, setFilterDirection] = useState<string>(saved?.direction ?? 'all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
+  // Persist filter changes to localStorage
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({ type: filterType, booked: filterBooked, direction: filterDirection }),
+      )
+    } catch {
+      // localStorage may be unavailable in some environments
+    }
+  }, [storageKey, filterType, filterBooked, filterDirection])
+
   // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [search, filterType, filterBooked])
+  }, [search, filterType, filterBooked, filterDirection])
 
   const filtered = useMemo(() => {
     return initialData.filter((log) => {
       if (filterType !== 'all' && log.call_type !== filterType) return false
       if (filterBooked === 'booked' && !log.is_booked) return false
       if (filterBooked === 'not_booked' && log.is_booked) return false
+
+      if (filterDirection !== 'all') {
+        if (log.direction !== null && log.direction !== undefined) {
+          // New rows: use explicit direction field
+          if (log.direction !== filterDirection) return false
+        } else {
+          // Old rows: infer direction from call_type as proxy
+          const isInbound = log.call_type === 'inbound_inquiry'
+          if (filterDirection === 'inbound' && !isInbound) return false
+          if (filterDirection === 'outbound' && isInbound) return false
+        }
+      }
+
       if (search) {
         const q = search.toLowerCase()
         return (
@@ -73,12 +152,13 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
           log.caller_name?.toLowerCase().includes(q) ||
           log.caller_phone?.toLowerCase().includes(q) ||
           log.summary?.toLowerCase().includes(q) ||
+          log.ai_summary?.toLowerCase().includes(q) ||
           false
         )
       }
       return true
     })
-  }, [initialData, filterType, filterBooked, search])
+  }, [initialData, filterType, filterBooked, filterDirection, search])
 
   const sorted = useMemo(() => {
     if (!sortKey) return filtered
@@ -98,6 +178,9 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
   const hasMore = sorted.length > visibleCount
   const remaining = sorted.length - visibleCount
 
+  const hasActiveFilters =
+    search || filterType !== 'all' || filterBooked !== 'all' || filterDirection !== 'all'
+
   function handleSort(key: SortKey) {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -105,6 +188,13 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
       setSortKey(key)
       setSortDir('desc')
     }
+  }
+
+  function clearFilters() {
+    setSearch('')
+    setFilterType('all')
+    setFilterBooked('all')
+    setFilterDirection('all')
   }
 
   // Inline helper — returns sort icon JSX (not a component, avoids remount)
@@ -145,6 +235,18 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
               />
             </div>
 
+            {/* Direction filter */}
+            <Select value={filterDirection} onValueChange={setFilterDirection}>
+              <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectValue placeholder="All calls" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All calls</SelectItem>
+                <SelectItem value="inbound">↓ Inbound</SelectItem>
+                <SelectItem value="outbound">↑ Outbound</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="h-8 w-36 text-xs">
                 <SelectValue placeholder="All types" />
@@ -182,20 +284,16 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
             <div>
               <p className="text-sm font-medium text-[var(--brand-muted)]">No calls found</p>
               <p className="text-xs text-[var(--brand-muted)] opacity-60 mt-1">
-                {search || filterType !== 'all' || filterBooked !== 'all'
+                {hasActiveFilters
                   ? 'Try adjusting your filters'
                   : 'Calls will appear here after your AI receptionist handles them'}
               </p>
             </div>
-            {(search || filterType !== 'all' || filterBooked !== 'all') && (
+            {hasActiveFilters && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setSearch('')
-                  setFilterType('all')
-                  setFilterBooked('all')
-                }}
+                onClick={clearFilters}
                 className="text-xs"
               >
                 Clear filters
@@ -259,7 +357,23 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                       <Fragment key={log.id}>
                         <TableRow
                           className="cursor-pointer"
-                          onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                          onClick={() => {
+                            if (onSelectCall) {
+                              onSelectCall(log)
+                            } else {
+                              setExpandedId(isExpanded ? null : log.id)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              if (onSelectCall) onSelectCall(log)
+                              else setExpandedId(isExpanded ? null : log.id)
+                            }
+                          }}
+                          tabIndex={0}
+                          role="button"
+                          aria-expanded={onSelectCall ? undefined : isExpanded}
                         >
                           {/* Time */}
                           <TableCell className="text-xs text-[var(--brand-muted)]">
@@ -278,6 +392,12 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                                 {log.caller_phone}
                               </div>
                             )}
+                            {/* AI summary 1-liner preview */}
+                            {(log.ai_summary || log.summary) && (
+                              <p className="text-xs text-[var(--brand-muted)] opacity-70 mt-1 line-clamp-1">
+                                {log.ai_summary ?? log.summary}
+                              </p>
+                            )}
                             {log.tags.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1.5">
                                 {log.tags.slice(0, 3).map((tag) => (
@@ -294,11 +414,28 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                             )}
                           </TableCell>
 
-                          {/* Call type */}
+                          {/* Call type + direction indicator */}
                           <TableCell>
-                            <Badge variant={typeColor} className="text-xs">
-                              {CALL_TYPE_LABELS[log.call_type as CallType] ?? log.call_type ?? 'Unknown'}
-                            </Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={typeColor} className="text-xs w-fit">
+                                {CALL_TYPE_LABELS[log.call_type as CallType] ?? log.call_type ?? 'Unknown'}
+                              </Badge>
+                              {log.direction && (
+                                <span className="flex items-center gap-0.5 text-[10px] text-[var(--brand-muted)]">
+                                  {log.direction === 'inbound' ? (
+                                    <>
+                                      <ArrowDownLeft className="h-2.5 w-2.5 text-[var(--brand-primary)]" />
+                                      Inbound
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ArrowUpRight className="h-2.5 w-2.5 text-amber-500" />
+                                      Outbound
+                                    </>
+                                  )}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
 
                           {/* Lead */}
@@ -354,15 +491,17 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                             )}
                           </TableCell>
 
-                          {/* Expand toggle */}
+                          {/* Expand toggle / detail arrow */}
                           <TableCell>
-                            <button className="text-[var(--brand-muted)] opacity-50 hover:opacity-100 transition-opacity">
-                              {isExpanded ? (
+                            <span className="text-[var(--brand-muted)] opacity-50 group-hover:opacity-100 transition-opacity">
+                              {onSelectCall ? (
+                                <ChevronRight className="h-4 w-4" />
+                              ) : isExpanded ? (
                                 <ChevronUp className="h-4 w-4" />
                               ) : (
                                 <ChevronDown className="h-4 w-4" />
                               )}
-                            </button>
+                            </span>
                           </TableCell>
                         </TableRow>
 
@@ -370,7 +509,7 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                         {isExpanded && (
                           <TableRow className="bg-[var(--brand-primary)]/[0.03] hover:bg-[var(--brand-primary)]/[0.03]">
                             <TableCell colSpan={9} className="py-4 px-6">
-                              <div className="space-y-3">
+                              <div className="space-y-4">
                                 {/* Audio inline player */}
                                 {playingId === log.id && log.recording_url && (
                                   <div>
@@ -387,19 +526,65 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                                   </div>
                                 )}
 
-                                {/* Summary */}
-                                {log.summary && (
+                                {/* Outcome badges: disposition + sentiment + intent */}
+                                {(log.disposition || log.sentiment || log.intent) && (
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {log.disposition && (
+                                      <Badge
+                                        variant={dispositionColors[log.disposition as CallDisposition] ?? 'muted'}
+                                        className="text-xs"
+                                      >
+                                        {CALL_DISPOSITION_LABELS[log.disposition as CallDisposition] ?? log.disposition}
+                                      </Badge>
+                                    )}
+                                    {log.sentiment && (
+                                      <span className={`text-xs font-medium ${sentimentStyle[log.sentiment as CallSentiment]?.className ?? ''}`}>
+                                        {sentimentStyle[log.sentiment as CallSentiment]?.label ?? log.sentiment}
+                                      </span>
+                                    )}
+                                    {log.intent && (
+                                      <span className="text-xs text-[var(--brand-muted)]">
+                                        Intent: {CALL_INTENT_LABELS[log.intent as keyof typeof CALL_INTENT_LABELS] ?? log.intent}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* AI Summary (prefer ai_summary, fall back to summary) */}
+                                {(log.ai_summary || log.summary) && (
                                   <div>
                                     <p className="text-xs font-medium text-[var(--brand-muted)] mb-1 uppercase tracking-wider">
                                       AI Summary
                                     </p>
                                     <p className="text-sm text-[var(--brand-text)] leading-relaxed">
-                                      {log.summary}
+                                      {log.ai_summary ?? log.summary}
                                     </p>
                                   </div>
                                 )}
 
-                                {/* Follow-up flag — light/dark theme compatible */}
+                                {/* Appointment details */}
+                                {(log.appointment_datetime || log.booked_at) && (
+                                  <div className="flex flex-wrap gap-4 text-xs">
+                                    {log.appointment_datetime && (
+                                      <div>
+                                        <span className="text-[var(--brand-muted)]">Appointment: </span>
+                                        <span className="text-[var(--brand-text)] font-medium">
+                                          {format(parseISO(log.appointment_datetime), 'MMM d, yyyy h:mm a')}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {log.booked_at && (
+                                      <div>
+                                        <span className="text-[var(--brand-muted)]">Booked at: </span>
+                                        <span className="text-[var(--brand-text)] font-medium">
+                                          {format(parseISO(log.booked_at), 'MMM d h:mm a')}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Follow-up flag */}
                                 {log.human_followup_needed && (
                                   <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/30 px-3 py-2.5">
                                     <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -417,8 +602,8 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                                 )}
 
                                 {/* Revenue breakdown */}
-                                {(log.booked_value > 0 || log.inquiries_value > 0) && (
-                                  <div className="flex gap-4 text-xs">
+                                {(log.booked_value > 0 || log.inquiries_value > 0 || log.lead_confidence != null) && (
+                                  <div className="flex flex-wrap gap-4 text-xs">
                                     {log.booked_value > 0 && (
                                       <div>
                                         <span className="text-[var(--brand-muted)]">Booked: </span>
@@ -442,6 +627,23 @@ export function CallLogsTable({ initialData, totalCount }: CallLogsTableProps) {
                                           {Math.round(log.lead_confidence * 100)}%
                                         </span>
                                       </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Lead source / agent info */}
+                                {(log.lead_source || log.agent_name || log.agent_provider) && (
+                                  <div className="flex flex-wrap gap-4 text-xs text-[var(--brand-muted)]">
+                                    {log.lead_source && (
+                                      <span>Source: <span className="text-[var(--brand-text)]">{log.lead_source}</span></span>
+                                    )}
+                                    {(log.agent_name || log.agent_provider) && (
+                                      <span>
+                                        Agent:{' '}
+                                        <span className="text-[var(--brand-text)]">
+                                          {[log.agent_name, log.agent_provider].filter(Boolean).join(' · ')}
+                                        </span>
+                                      </span>
                                     )}
                                   </div>
                                 )}

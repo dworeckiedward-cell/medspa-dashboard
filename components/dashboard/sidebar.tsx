@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Phone, Settings, Menu, X, Sparkles } from 'lucide-react'
+import { LayoutDashboard, Phone, Settings, Menu, X, Sparkles, Users, Bell, Plug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { buildDashboardHref } from '@/lib/dashboard/link'
 import { useAccent } from '@/lib/dashboard/accent'
@@ -52,12 +52,30 @@ const NAV_ITEMS: NavItemDef[] = [
     labelFn: (t) => t.nav.dashboard,
     href: '/dashboard',
     icon: LayoutDashboard,
-    exact: true, // must NOT match /dashboard/call-logs or /dashboard/settings
+    exact: true, // must NOT match /dashboard/leads, /dashboard/call-logs, etc.
+  },
+  {
+    labelFn: (t) => t.nav.leads,
+    href: '/dashboard/leads',
+    icon: Users,
+    exact: false, // covers /dashboard/leads/[id] sub-routes
   },
   {
     labelFn: (t) => t.nav.callLogs,
     href: '/dashboard/call-logs',
     icon: Phone,
+    exact: true,
+  },
+  {
+    labelFn: (t) => t.nav.followUp,
+    href: '/dashboard/follow-up',
+    icon: Bell,
+    exact: true,
+  },
+  {
+    labelFn: (t) => t.nav.integrations,
+    href: '/dashboard/integrations',
+    icon: Plug,
     exact: true,
   },
   {

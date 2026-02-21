@@ -2,7 +2,7 @@
  * Dashboard shell translations.
  *
  * Covers: sidebar labels, settings section titles/descriptions, dashboard tab
- * labels, and common UI strings used in modified components.
+ * labels, leads/follow-up/integrations page labels, and common UI strings.
  *
  * Intentionally lightweight — no heavy i18n library.
  * Unknown keys fall back to English automatically via useLanguage().
@@ -23,7 +23,10 @@ const dict = {
   en: {
     nav: {
       dashboard: 'Dashboard',
+      leads: 'Leads',
       callLogs: 'Call Logs',
+      followUp: 'Follow-up',
+      integrations: 'Integrations',
       settings: 'Settings',
       aiReceptionist: 'AI Receptionist',
     },
@@ -65,6 +68,74 @@ const dict = {
       comingSoon: 'Coming Soon',
       comingSoonDesc: 'This section is being built. Backend data classification coming next.',
     },
+    leads: {
+      pageTitle: 'Leads',
+      pageSubtitle: 'All leads captured and qualified by your AI receptionist.',
+      search: 'Search leads…',
+      allStatuses: 'All statuses',
+      allSources: 'All sources',
+      allDirections: 'All calls',
+      needsFollowUp: 'Follow-up only',
+      today: 'Today',
+      last7d: 'Last 7 days',
+      last30d: 'Last 30 days',
+      allTime: 'All time',
+      noLeads: 'No leads found',
+      noLeadsHint: 'Adjust your filters or wait for new calls',
+      clearFilters: 'Clear filters',
+      colName: 'Name',
+      colSource: 'Source',
+      colStatus: 'Status',
+      colLastContact: 'Last contact',
+      colNextAction: 'Next action',
+      colOwner: 'Owner',
+      colPriority: 'Priority',
+      ownerAi: 'AI',
+      ownerHuman: 'Human',
+      overdue: 'Overdue',
+      dueSoon: 'Due soon',
+    },
+    followUp: {
+      pageTitle: 'Follow-up Queue',
+      pageSubtitle: `Operational queue for leads the AI couldn't fully close.`,
+      tabCallBackNow: 'Call Back Now',
+      tabInterested: 'Interested',
+      tabNoShow: 'No-show',
+      tabReminders: 'Reminders',
+      tabHumanReview: 'Human Review',
+      noTasks: 'No tasks in this queue',
+      noTasksHint: 'Great job — all caught up!',
+      overdue: 'Overdue',
+      dueSoon: 'Due soon',
+      onTrack: 'On track',
+      markDone: 'Mark done',
+      snooze: 'Snooze',
+      openLead: 'Open lead',
+      suggestedScript: 'Suggested script',
+      suggestedAction: 'Suggested action',
+    },
+    integrations: {
+      pageTitle: 'Integrations',
+      pageSubtitle: 'Sync lead activity with your CRM and automation tools.',
+      customWebhook: 'Custom Webhook',
+      customWebhookDesc: 'Send real-time events to any endpoint via HTTP POST.',
+      connected: 'Connected',
+      notConfigured: 'Not configured',
+      comingSoon: 'Coming Soon',
+      endpoint: 'Endpoint URL',
+      secret: 'Webhook Secret',
+      events: 'Events',
+      sendTest: 'Send test event',
+      recentActivity: 'Recent activity',
+      noActivity: 'No sync activity yet',
+      success: 'Success',
+      failed: 'Failed',
+      pending: 'Pending',
+      lastSync: 'Last sync',
+      copyUrl: 'Copy URL',
+      copySecret: 'Copy secret',
+      reveal: 'Reveal',
+    },
     callLogs: {
       title: 'Call Logs',
       subtitle: 'All calls handled by your AI receptionist.',
@@ -81,7 +152,10 @@ const dict = {
   pl: {
     nav: {
       dashboard: 'Dashboard',
+      leads: 'Leady',
       callLogs: 'Dziennik połączeń',
+      followUp: 'Follow-up',
+      integrations: 'Integracje',
       settings: 'Ustawienia',
       aiReceptionist: 'Asystent AI',
     },
@@ -122,6 +196,74 @@ const dict = {
       comingSoon: 'Wkrótce dostępne',
       comingSoonDesc: 'Ta sekcja jest w budowie. Klasyfikacja danych backendu już wkrótce.',
     },
+    leads: {
+      pageTitle: 'Leady',
+      pageSubtitle: 'Wszystkie leady pozyskane i zakwalifikowane przez asystenta AI.',
+      search: 'Szukaj leadów…',
+      allStatuses: 'Wszystkie statusy',
+      allSources: 'Wszystkie źródła',
+      allDirections: 'Wszystkie połączenia',
+      needsFollowUp: 'Tylko follow-up',
+      today: 'Dziś',
+      last7d: 'Ostatnie 7 dni',
+      last30d: 'Ostatnie 30 dni',
+      allTime: 'Wszystkie',
+      noLeads: 'Nie znaleziono leadów',
+      noLeadsHint: 'Zmień filtry lub poczekaj na nowe połączenia',
+      clearFilters: 'Wyczyść filtry',
+      colName: 'Imię i nazwisko',
+      colSource: 'Źródło',
+      colStatus: 'Status',
+      colLastContact: 'Ostatni kontakt',
+      colNextAction: 'Następna akcja',
+      colOwner: 'Opiekun',
+      colPriority: 'Priorytet',
+      ownerAi: 'AI',
+      ownerHuman: 'Człowiek',
+      overdue: 'Przeterminowane',
+      dueSoon: 'Wkrótce',
+    },
+    followUp: {
+      pageTitle: 'Kolejka follow-up',
+      pageSubtitle: 'Operacyjna kolejka dla leadów, których AI nie zamknęła.',
+      tabCallBackNow: 'Oddzwoń teraz',
+      tabInterested: 'Zainteresowani',
+      tabNoShow: 'Nieobecni',
+      tabReminders: 'Przypomnienia',
+      tabHumanReview: 'Weryfikacja',
+      noTasks: 'Brak zadań w tej kolejce',
+      noTasksHint: 'Dobra robota — wszystko ogarnięte!',
+      overdue: 'Przeterminowane',
+      dueSoon: 'Wkrótce',
+      onTrack: 'Na czas',
+      markDone: 'Oznacz jako zrobione',
+      snooze: 'Odłóż',
+      openLead: 'Otwórz lead',
+      suggestedScript: 'Sugerowany skrypt',
+      suggestedAction: 'Sugerowana akcja',
+    },
+    integrations: {
+      pageTitle: 'Integracje',
+      pageSubtitle: 'Synchronizuj aktywność leadów z CRM i narzędziami automatyzacji.',
+      customWebhook: 'Własny webhook',
+      customWebhookDesc: 'Wysyłaj zdarzenia w czasie rzeczywistym do dowolnego endpointu via HTTP POST.',
+      connected: 'Połączono',
+      notConfigured: 'Nieskonfigurowane',
+      comingSoon: 'Wkrótce',
+      endpoint: 'Adres URL endpointu',
+      secret: 'Klucz webhooka',
+      events: 'Zdarzenia',
+      sendTest: 'Wyślij testowe zdarzenie',
+      recentActivity: 'Ostatnia aktywność',
+      noActivity: 'Brak aktywności synchronizacji',
+      success: 'Sukces',
+      failed: 'Błąd',
+      pending: 'Oczekuje',
+      lastSync: 'Ostatnia sync',
+      copyUrl: 'Kopiuj URL',
+      copySecret: 'Kopiuj klucz',
+      reveal: 'Pokaż',
+    },
     callLogs: {
       title: 'Dziennik połączeń',
       subtitle: 'Wszystkie połączenia obsługiwane przez Twojego asystenta AI.',
@@ -138,7 +280,10 @@ const dict = {
   es: {
     nav: {
       dashboard: 'Panel',
+      leads: 'Leads',
       callLogs: 'Registro de llamadas',
+      followUp: 'Seguimiento',
+      integrations: 'Integraciones',
       settings: 'Configuración',
       aiReceptionist: 'Recepcionista IA',
     },
@@ -180,6 +325,74 @@ const dict = {
       comingSoon: 'Próximamente',
       comingSoonDesc: 'Esta sección está en construcción. La clasificación de datos backend llegará pronto.',
     },
+    leads: {
+      pageTitle: 'Leads',
+      pageSubtitle: 'Todos los leads capturados y calificados por tu recepcionista IA.',
+      search: 'Buscar leads…',
+      allStatuses: 'Todos los estados',
+      allSources: 'Todas las fuentes',
+      allDirections: 'Todas las llamadas',
+      needsFollowUp: 'Solo seguimiento',
+      today: 'Hoy',
+      last7d: 'Últimos 7 días',
+      last30d: 'Últimos 30 días',
+      allTime: 'Todo el tiempo',
+      noLeads: 'No se encontraron leads',
+      noLeadsHint: 'Ajusta los filtros o espera nuevas llamadas',
+      clearFilters: 'Limpiar filtros',
+      colName: 'Nombre',
+      colSource: 'Fuente',
+      colStatus: 'Estado',
+      colLastContact: 'Último contacto',
+      colNextAction: 'Próxima acción',
+      colOwner: 'Responsable',
+      colPriority: 'Prioridad',
+      ownerAi: 'IA',
+      ownerHuman: 'Humano',
+      overdue: 'Vencido',
+      dueSoon: 'Próximo',
+    },
+    followUp: {
+      pageTitle: 'Cola de seguimiento',
+      pageSubtitle: 'Cola operativa para leads que la IA no pudo cerrar.',
+      tabCallBackNow: 'Llamar ahora',
+      tabInterested: 'Interesados',
+      tabNoShow: 'No presentados',
+      tabReminders: 'Recordatorios',
+      tabHumanReview: 'Revisión humana',
+      noTasks: 'No hay tareas en esta cola',
+      noTasksHint: '¡Buen trabajo — todo al día!',
+      overdue: 'Vencido',
+      dueSoon: 'Próximo',
+      onTrack: 'A tiempo',
+      markDone: 'Marcar como hecho',
+      snooze: 'Posponer',
+      openLead: 'Abrir lead',
+      suggestedScript: 'Guión sugerido',
+      suggestedAction: 'Acción sugerida',
+    },
+    integrations: {
+      pageTitle: 'Integraciones',
+      pageSubtitle: 'Sincroniza la actividad de leads con tu CRM y herramientas de automatización.',
+      customWebhook: 'Webhook personalizado',
+      customWebhookDesc: 'Envía eventos en tiempo real a cualquier endpoint via HTTP POST.',
+      connected: 'Conectado',
+      notConfigured: 'No configurado',
+      comingSoon: 'Próximamente',
+      endpoint: 'URL del endpoint',
+      secret: 'Clave del webhook',
+      events: 'Eventos',
+      sendTest: 'Enviar evento de prueba',
+      recentActivity: 'Actividad reciente',
+      noActivity: 'Sin actividad de sincronización',
+      success: 'Éxito',
+      failed: 'Error',
+      pending: 'Pendiente',
+      lastSync: 'Última sincronización',
+      copyUrl: 'Copiar URL',
+      copySecret: 'Copiar clave',
+      reveal: 'Revelar',
+    },
     callLogs: {
       title: 'Registro de llamadas',
       subtitle: 'Todas las llamadas gestionadas por tu recepcionista IA.',
@@ -198,7 +411,10 @@ const dict = {
 // entry is assignable even though the actual values differ across languages.
 // `as const` was intentionally omitted to allow this.
 export type TranslationDict = {
-  nav: { dashboard: string; callLogs: string; settings: string; aiReceptionist: string }
+  nav: {
+    dashboard: string; leads: string; callLogs: string; followUp: string
+    integrations: string; settings: string; aiReceptionist: string
+  }
   settings: {
     pageTitle: string; pageSubtitle: string; appearance: string; appearanceDesc: string
     theme: string; themeDesc: string; accentColor: string; accentColorDesc: string
@@ -212,6 +428,33 @@ export type TranslationDict = {
     inboundCalls: string; leadsGenerated: string; inquiriesValue: string
     newLeads: string; followUpsNeeded: string; leadBookingRate: string
     comingSoon: string; comingSoonDesc: string
+  }
+  leads: {
+    pageTitle: string; pageSubtitle: string; search: string
+    allStatuses: string; allSources: string; allDirections: string
+    needsFollowUp: string; today: string; last7d: string; last30d: string; allTime: string
+    noLeads: string; noLeadsHint: string; clearFilters: string
+    colName: string; colSource: string; colStatus: string
+    colLastContact: string; colNextAction: string; colOwner: string; colPriority: string
+    ownerAi: string; ownerHuman: string; overdue: string; dueSoon: string
+  }
+  followUp: {
+    pageTitle: string; pageSubtitle: string
+    tabCallBackNow: string; tabInterested: string; tabNoShow: string
+    tabReminders: string; tabHumanReview: string
+    noTasks: string; noTasksHint: string
+    overdue: string; dueSoon: string; onTrack: string
+    markDone: string; snooze: string; openLead: string
+    suggestedScript: string; suggestedAction: string
+  }
+  integrations: {
+    pageTitle: string; pageSubtitle: string
+    customWebhook: string; customWebhookDesc: string
+    connected: string; notConfigured: string; comingSoon: string
+    endpoint: string; secret: string; events: string
+    sendTest: string; recentActivity: string; noActivity: string
+    success: string; failed: string; pending: string
+    lastSync: string; copyUrl: string; copySecret: string; reveal: string
   }
   callLogs: { title: string; subtitle: string }
   loader: { preparingWorkspace: string }
