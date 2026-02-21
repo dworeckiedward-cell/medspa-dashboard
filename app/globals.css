@@ -37,6 +37,15 @@
     --brand-border: #E4E4E7;
     --brand-text: #0A0A0B;
     --brand-muted: #6B7280;
+
+    /* ── User accent (overridden by blocking script in layout.tsx) ─────────
+     * --user-accent       full hex — active nav item text / control fill
+     * --user-accent-soft  12% opacity — active item background tint
+     * --user-accent-ring  40% opacity — focus ring / selected border
+     * ─────────────────────────────────────────────────────────────────────── */
+    --user-accent: #2563EB;
+    --user-accent-soft: rgba(37, 99, 235, 0.12);
+    --user-accent-ring: rgba(37, 99, 235, 0.4);
   }
 
   .dark {

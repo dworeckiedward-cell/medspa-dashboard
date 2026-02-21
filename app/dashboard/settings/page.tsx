@@ -7,6 +7,7 @@ import {
   NotificationSection,
   AdvancedSection,
   CopyableValue,
+  SettingsHeading,
 } from '@/components/dashboard/settings-sections'
 
 export const dynamic = 'force-dynamic'
@@ -29,12 +30,10 @@ export default async function SettingsPage() {
   return (
     <DashboardLayout tenant={tenant} followUpCount={0} bookedNotificationCount={0} bookedNotifications={[]}>
       <div className="max-w-2xl mx-auto p-6 pb-16">
-        {/* Sticky page heading */}
+        {/* Sticky page heading — SettingsHeading is a client component so it
+            renders the translated title without making this page a client component */}
         <div className="sticky top-14 z-10 -mx-6 px-6 pt-5 pb-4 mb-6 bg-[var(--brand-bg)]/95 backdrop-blur border-b border-[var(--brand-border)] transition-colors duration-200">
-          <h1 className="text-xl font-semibold text-[var(--brand-text)]">Settings</h1>
-          <p className="text-sm text-[var(--brand-muted)] mt-1">
-            Manage your workspace appearance and preferences.
-          </p>
+          <SettingsHeading />
         </div>
 
         <div className="space-y-8">
