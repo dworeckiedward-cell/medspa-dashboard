@@ -37,44 +37,56 @@ export interface OnboardingStepMeta {
   number: number
 }
 
+/**
+ * All steps including internal-only ones (integrations).
+ * Kept for backward compatibility with saved state.
+ */
 export const ONBOARDING_STEPS: OnboardingStepMeta[] = [
   {
     key: 'branding',
     number: 1,
-    title: 'Branding',
-    description: 'Set your clinic name, logo, and accent color',
+    title: 'Welcome & Brand',
+    description: 'Review your clinic branding — update your logo and accent color',
   },
   {
     key: 'ai_settings',
     number: 2,
-    title: 'AI Settings',
-    description: 'Configure business hours and fallback phone',
+    title: "What's Configured",
+    description: 'See what Servify has set up for your clinic',
   },
   {
     key: 'services',
     number: 3,
-    title: 'Services & Pricing',
-    description: 'Add your top services for revenue attribution',
+    title: 'Review Services',
+    description: "We've preconfigured your services — review and update if needed",
   },
   {
     key: 'integrations',
     number: 4,
     title: 'Integrations',
-    description: 'Connect your CRM or booking system',
+    description: 'Your integrations are managed by Servify',
   },
   {
     key: 'reporting',
     number: 5,
-    title: 'Reporting Setup',
-    description: 'Set receptionist rate and subscription cost for ROI',
+    title: 'Reporting Overview',
+    description: 'See what metrics and insights you can track',
   },
   {
     key: 'launch',
     number: 6,
-    title: 'Launch',
-    description: 'Review your setup and go live',
+    title: 'Go Live',
+    description: 'Your setup is ready — enter your dashboard',
   },
 ]
+
+/**
+ * Client-visible steps (excludes integrations, which is auto-completed by Servify).
+ * Used by the onboarding wizard to render step indicators.
+ */
+export const CLIENT_VISIBLE_STEPS = ONBOARDING_STEPS.filter(
+  (s) => s.key !== 'integrations',
+)
 
 // ── Storage helpers ──────────────────────────────────────────────────────────
 

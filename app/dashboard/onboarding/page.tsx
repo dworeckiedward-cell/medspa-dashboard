@@ -30,15 +30,17 @@ export default async function OnboardingPage() {
     >
       <div className="p-6 max-w-2xl mx-auto animate-fade-in">
         <div className="mb-6">
-          <h1 className="text-xl font-bold text-[var(--brand-text)]">Setup Wizard</h1>
+          <h1 className="text-xl font-bold text-[var(--brand-text)]">Setup Summary</h1>
           <p className="text-sm text-[var(--brand-muted)] mt-1">
-            Complete these steps to get the most out of your AI receptionist dashboard.
+            Review your setup and go live — Servify has configured your AI receptionist dashboard.
           </p>
         </div>
         <OnboardingWizard
           tenantId={tenant.id}
           tenantSlug={tenant.slug}
           tenantName={tenant.name}
+          tenantLogoUrl={tenant.logo_url}
+          tenantBrandColor={tenant.brand_color}
         />
       </div>
     </DashboardLayout>

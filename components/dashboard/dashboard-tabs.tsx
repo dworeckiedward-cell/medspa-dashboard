@@ -31,6 +31,7 @@ import { NeedsAttentionCard } from './needs-attention-card'
 import { RecommendedActionsCard } from './recommended-actions-card'
 import { ServicePerformanceCard } from './service-performance-card'
 import { DataQualityCard } from './data-quality-card'
+import { SystemAlertsCard } from './system-alerts-card'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { DashboardMetrics, CallLog, Client } from '@/types/database'
 import type { ClientService } from '@/lib/types/domain'
@@ -203,6 +204,8 @@ function OverviewTab({
         tenantId={tenant.id}
         tenantSlug={tenant.slug}
         tenantName={tenant.name}
+        tenantLogoUrl={tenant.logo_url}
+        tenantBrandColor={tenant.brand_color}
       />
 
       {/* Next recommended action when setup is incomplete (shown after wizard is dismissed) */}
@@ -213,6 +216,9 @@ function OverviewTab({
         tenantSlug={tenant.slug}
         failedDeliveries={failedDeliveries}
       />
+
+      {/* Persistent system alerts — fetches from /api/alerts */}
+      <SystemAlertsCard />
 
       {/* Operational alerts — surfaces exceptions that need attention */}
       {exceptions && exceptions.length > 0 && (

@@ -1,20 +1,23 @@
 'use client'
 
 /**
- * OnboardingWizard — multi-step setup flow for new tenants.
+ * OnboardingWizard — Setup Summary & Go-Live flow for new tenants.
  *
- * Each step shows relevant configuration with clear CTAs.
+ * Reflects a done-for-you model: Servify configures the system, the client
+ * reviews their setup summary, optionally updates logo/services, and goes live.
+ *
+ * Step content is read-only / summary-driven. Technical setup (AI config,
+ * integrations, webhooks) is shown as "Configured by Servify" — not as client tasks.
+ *
  * Progress is persisted to the server (DB) with localStorage fallback.
- * Users can skip the wizard entirely or complete steps in any order.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import {
   Palette,
-  Bot,
+  ShieldCheck,
   Tag,
-  Plug,
   BarChart3,
   Rocket,
   Check,
@@ -23,8 +26,15 @@ import {
   X,
   Sparkles,
   CheckCircle2,
-  Circle,
   ExternalLink,
+  ImageIcon,
+  Plug,
+  Bot,
+  FileBarChart,
+  Phone,
+  CalendarCheck,
+  DollarSign,
+  Loader2,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,6 +47,7 @@ import {
   saveOnboardingState,
   getCompletionPercent,
   ONBOARDING_STEPS,
+  CLIENT_VISIBLE_STEPS,
   type OnboardingStep,
   type OnboardingState,
 } from '@/lib/dashboard/onboarding-state'
@@ -47,13 +58,15 @@ interface OnboardingWizardProps {
   tenantId: string
   tenantSlug?: string | null
   tenantName?: string
+  tenantLogoUrl?: string | null
+  tenantBrandColor?: string | null
 }
 
-// ── Step icons ───────────────────────────────────────────────────────────────
+// ── Step icons (for client-visible steps) ────────────────────────────────────
 
 const STEP_ICONS: Record<OnboardingStep, React.ElementType> = {
   branding: Palette,
-  ai_settings: Bot,
+  ai_settings: ShieldCheck,
   services: Tag,
   integrations: Plug,
   reporting: BarChart3,
@@ -91,20 +104,60 @@ async function persistToServer(
   }
 }
 
-// ── Step content panels ──────────────────────────────────────────────────────
+// ── Step 1: Welcome & Brand ──────────────────────────────────────────────────
 
-function BrandingStep({ tenantSlug }: { tenantSlug?: string | null }) {
+function WelcomeBrandStep({
+  tenantSlug,
+  tenantName,
+  tenantLogoUrl,
+  tenantBrandColor,
+}: {
+  tenantSlug?: string | null
+  tenantName?: string
+  tenantLogoUrl?: string | null
+  tenantBrandColor?: string | null
+}) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <p className="text-sm text-[var(--brand-text)]">
-        Your clinic&apos;s brand identity is already set up from your account configuration.
-        You can customize the theme and accent color at any time.
+        Welcome to your Servify dashboard! We&apos;ve configured your clinic&apos;s brand identity.
+        You can update your logo or customize the accent color anytime.
       </p>
+
+      {/* Brand preview */}
+      <div className="flex items-center gap-4 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3">
+        <div
+          className={cn(
+            'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl overflow-hidden',
+            !tenantLogoUrl && 'text-white text-lg font-bold',
+          )}
+          style={!tenantLogoUrl ? { background: tenantBrandColor ?? '#2563EB' } : undefined}
+        >
+          {tenantLogoUrl ? (
+            <img src={tenantLogoUrl} alt="Logo" className="h-full w-full object-contain" />
+          ) : (
+            (tenantName ?? 'C').charAt(0).toUpperCase()
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-[var(--brand-text)]">{tenantName ?? 'Your Clinic'}</p>
+          <p className="text-[10px] text-[var(--brand-muted)]">
+            {tenantLogoUrl ? 'Logo configured' : 'Using clinic initial — add a logo in Settings'}
+          </p>
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <Link href={buildDashboardHref('/dashboard/settings', tenantSlug)}>
           <Button variant="outline" size="sm">
+            <ImageIcon className="h-3 w-3" />
+            Update logo
+          </Button>
+        </Link>
+        <Link href={buildDashboardHref('/dashboard/settings', tenantSlug)}>
+          <Button variant="outline" size="sm">
+            <Palette className="h-3 w-3" />
             Customize theme
-            <ExternalLink className="h-3 w-3 ml-1" />
           </Button>
         </Link>
       </div>
@@ -112,65 +165,206 @@ function BrandingStep({ tenantSlug }: { tenantSlug?: string | null }) {
   )
 }
 
-function AiSettingsStep() {
+// ── Step 2: What's Configured ────────────────────────────────────────────────
+
+function ConfiguredSummaryStep() {
+  const items = [
+    {
+      icon: Bot,
+      label: 'AI Receptionist',
+      status: 'Configured by Servify',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/20',
+    },
+    {
+      icon: Plug,
+      label: 'Booking & CRM Integration',
+      status: 'Configured by Servify',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/20',
+    },
+    {
+      icon: FileBarChart,
+      label: 'Reporting & Analytics',
+      status: 'Enabled',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/20',
+    },
+    {
+      icon: Phone,
+      label: 'Call Handling',
+      status: 'Active',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bg: 'bg-emerald-50 dark:bg-emerald-950/20',
+    },
+  ]
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--brand-text)]">
-        Configure your AI receptionist&apos;s behavior — business hours, fallback phone number,
-        and supported languages.
+        Servify has configured the core systems for your clinic. Here&apos;s a summary
+        of what&apos;s set up and ready.
       </p>
+      <div className="space-y-2">
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <div
+              key={item.label}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2.5',
+                item.bg,
+              )}
+            >
+              <Icon className={cn('h-4 w-4 shrink-0', item.color)} />
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-medium text-[var(--brand-text)]">{item.label}</span>
+              </div>
+              <span className={cn('text-[11px] font-medium', item.color)}>
+                {item.status}
+              </span>
+            </div>
+          )
+        })}
+      </div>
       <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3">
         <p className="text-xs text-[var(--brand-muted)]">
-          AI settings are managed through your Servify admin panel. Contact your account manager
-          to update these settings.
+          Need changes to any of these settings?{' '}
+          <a
+            href="mailto:support@servify.ai"
+            className="font-medium text-[var(--brand-text)] underline underline-offset-2 hover:text-[var(--user-accent)] transition-colors"
+          >
+            Contact Servify
+          </a>
         </p>
       </div>
     </div>
   )
 }
 
-function ServicesStep({ tenantSlug }: { tenantSlug?: string | null }) {
+// ── Step 3: Services Review ──────────────────────────────────────────────────
+
+interface ServicePreview {
+  id: string
+  name: string
+  category: string | null
+  priceCents: number | null
+  currency: string
+}
+
+function ServicesReviewStep({ tenantSlug }: { tenantSlug?: string | null }) {
+  const [services, setServices] = useState<ServicePreview[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/services')
+        if (res.ok) {
+          const json = await res.json()
+          setServices(
+            (json.services ?? [])
+              .filter((s: { isActive?: boolean }) => s.isActive !== false)
+              .slice(0, 10),
+          )
+        }
+      } catch {
+        // Silent — will show empty state
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="h-5 w-5 animate-spin text-[var(--brand-muted)]" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
-      <p className="text-sm text-[var(--brand-text)]">
-        Add your top services so the dashboard can attribute revenue to specific treatments.
-        This powers the ROI reports and booking proof table.
-      </p>
+      {services.length > 0 ? (
+        <>
+          <p className="text-sm text-[var(--brand-text)]">
+            We&apos;ve preconfigured your services. Review and update if needed.
+          </p>
+          <div className="rounded-lg border border-[var(--brand-border)] divide-y divide-[var(--brand-border)] overflow-hidden">
+            {services.map((s) => (
+              <div key={s.id} className="flex items-center justify-between px-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs font-medium text-[var(--brand-text)]">{s.name}</span>
+                  {s.category && (
+                    <span className="text-[10px] text-[var(--brand-muted)] ml-2">{s.category}</span>
+                  )}
+                </div>
+                <span className="text-xs tabular-nums text-[var(--brand-muted)]">
+                  {s.priceCents != null
+                    ? new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: (s.currency || 'usd').toUpperCase(),
+                        maximumFractionDigits: 0,
+                      }).format(s.priceCents / 100)
+                    : 'Quote'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="text-center py-4">
+          <Tag className="h-6 w-6 text-[var(--brand-muted)] mx-auto mb-2 opacity-50" />
+          <p className="text-sm text-[var(--brand-text)]">No services configured yet</p>
+          <p className="text-xs text-[var(--brand-muted)] mt-0.5">
+            Add your services to enable revenue attribution and performance tracking.
+          </p>
+        </div>
+      )}
       <Link href={buildDashboardHref('/dashboard/settings', tenantSlug)}>
-        <Button variant="brand" size="sm">
+        <Button variant="outline" size="sm">
           <Tag className="h-3.5 w-3.5" />
-          Add services
+          {services.length > 0 ? 'Edit services' : 'Add services'}
+          <ExternalLink className="h-3 w-3 ml-1" />
         </Button>
       </Link>
     </div>
   )
 }
 
-function IntegrationsStep({ tenantSlug }: { tenantSlug?: string | null }) {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-[var(--brand-text)]">
-        Connect your CRM, booking system, or custom webhook to sync call data
-        and appointments automatically.
-      </p>
-      <Link href={buildDashboardHref('/dashboard/integrations', tenantSlug)}>
-        <Button variant="brand" size="sm">
-          <Plug className="h-3.5 w-3.5" />
-          Set up integrations
-        </Button>
-      </Link>
-    </div>
-  )
-}
+// ── Step 5: Reporting Overview ───────────────────────────────────────────────
 
-function ReportingStep({ tenantSlug }: { tenantSlug?: string | null }) {
+function ReportingOverviewStep({ tenantSlug }: { tenantSlug?: string | null }) {
+  const metrics = [
+    { icon: Phone, label: 'Call volume & disposition', description: 'Track every inbound and outbound call' },
+    { icon: CalendarCheck, label: 'Booking rate & conversion', description: 'See how many calls convert to appointments' },
+    { icon: DollarSign, label: 'Revenue attribution', description: 'Attribute potential revenue to services and calls' },
+    { icon: BarChart3, label: 'ROI proof', description: 'Executive summary comparing AI vs traditional receptionist costs' },
+  ]
+
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--brand-text)]">
-        Review your reporting configuration. Visit the Reports page to see
-        executive summaries, ROI calculations, and booking proof.
+        Your dashboard tracks key performance metrics automatically. Here&apos;s what you&apos;ll see:
       </p>
-      <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 space-y-2">
+      <div className="space-y-2">
+        {metrics.map((m) => {
+          const Icon = m.icon
+          return (
+            <div key={m.label} className="flex items-start gap-2.5 py-1">
+              <Icon className="h-3.5 w-3.5 text-[var(--brand-muted)] mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-[var(--brand-text)]">{m.label}</p>
+                <p className="text-[10px] text-[var(--brand-muted)]">{m.description}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 space-y-1.5">
+        <p className="text-xs font-medium text-[var(--brand-text)]">ROI Assumptions</p>
         <div className="flex items-center justify-between text-xs">
           <span className="text-[var(--brand-muted)]">Receptionist hourly rate</span>
           <span className="font-medium text-[var(--brand-text)]">$22/hr (default)</span>
@@ -180,36 +374,33 @@ function ReportingStep({ tenantSlug }: { tenantSlug?: string | null }) {
           <span className="font-medium text-[var(--brand-text)]">$999/mo (default)</span>
         </div>
         <p className="text-[10px] text-[var(--brand-muted)]">
-          These defaults are used in ROI calculations. Custom values coming soon.
+          Configured by Servify. Need changes?{' '}
+          <a
+            href="mailto:support@servify.ai"
+            className="font-medium underline underline-offset-2 hover:text-[var(--brand-text)]"
+          >
+            Contact us
+          </a>
         </p>
       </div>
       <Link href={buildDashboardHref('/dashboard/reports', tenantSlug)}>
         <Button variant="outline" size="sm">
           <BarChart3 className="h-3.5 w-3.5" />
-          View reports
+          Preview reports
         </Button>
       </Link>
     </div>
   )
 }
 
-// ── Client-Ready Checklist (Launch step) ─────────────────────────────────────
+// ── Step 6: Go Live ──────────────────────────────────────────────────────────
 
-interface ChecklistItem {
+interface ReadinessItem {
   label: string
-  step: OnboardingStep
-  href: string
+  done: boolean
 }
 
-const CLIENT_CHECKLIST: ChecklistItem[] = [
-  { label: 'Branding & theme configured', step: 'branding', href: '/dashboard/settings' },
-  { label: 'AI receptionist settings reviewed', step: 'ai_settings', href: '/dashboard/settings' },
-  { label: 'Services & pricing added', step: 'services', href: '/dashboard/settings' },
-  { label: 'CRM/booking integration connected', step: 'integrations', href: '/dashboard/integrations' },
-  { label: 'Reporting setup confirmed', step: 'reporting', href: '/dashboard/reports' },
-]
-
-function LaunchStep({
+function GoLiveStep({
   state,
   tenantName,
   tenantSlug,
@@ -218,64 +409,68 @@ function LaunchStep({
   tenantName?: string
   tenantSlug?: string | null
 }) {
-  const percent = getCompletionPercent(state)
-  const allComplete = CLIENT_CHECKLIST.every((item) => state.completedSteps.includes(item.step))
+  const readiness: ReadinessItem[] = [
+    { label: 'Branding reviewed', done: state.completedSteps.includes('branding') },
+    { label: 'System configuration reviewed', done: state.completedSteps.includes('ai_settings') },
+    { label: 'Services reviewed', done: state.completedSteps.includes('services') },
+    { label: 'Reporting overview seen', done: state.completedSteps.includes('reporting') },
+  ]
+
+  const allReady = readiness.every((r) => r.done)
 
   return (
     <div className="space-y-4">
-      {allComplete ? (
+      {allReady ? (
         <div className="text-center py-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-950/40 mx-auto mb-3">
             <Check className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
           </div>
           <p className="text-sm font-semibold text-[var(--brand-text)]">
-            {tenantName ?? 'Your clinic'} is ready!
+            {tenantName ?? 'Your clinic'} is launch ready!
           </p>
           <p className="text-xs text-[var(--brand-muted)] mt-1">
-            All setup steps are complete. Your AI receptionist is live.
+            Your AI receptionist is live and your dashboard is ready. Enter your dashboard to explore.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-sm font-medium text-[var(--brand-text)]">
-            Client-Ready Checklist
+            Setup Summary
           </p>
           <p className="text-xs text-[var(--brand-muted)]">
-            {percent}% complete — finish remaining items before going live.
+            Review the items below before entering your dashboard.
           </p>
           <div className="space-y-1">
-            {CLIENT_CHECKLIST.map((item) => {
-              const done = state.completedSteps.includes(item.step)
-              return (
-                <Link
-                  key={item.step}
-                  href={buildDashboardHref(item.href, tenantSlug)}
+            {readiness.map((item) => (
+              <div
+                key={item.label}
+                className={cn(
+                  'flex items-center gap-2.5 rounded-lg px-3 py-2',
+                  item.done
+                    ? 'bg-emerald-50 dark:bg-emerald-950/20'
+                    : 'bg-[var(--brand-bg)]',
+                )}
+              >
+                <CheckCircle2
                   className={cn(
-                    'flex items-center gap-2.5 rounded-lg px-3 py-2 transition-colors',
-                    done
-                      ? 'bg-emerald-50 dark:bg-emerald-950/20'
-                      : 'bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30',
+                    'h-4 w-4 shrink-0',
+                    item.done
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-[var(--brand-border)]',
+                  )}
+                />
+                <span
+                  className={cn(
+                    'text-xs',
+                    item.done
+                      ? 'text-emerald-700 dark:text-emerald-300'
+                      : 'text-[var(--brand-muted)]',
                   )}
                 >
-                  {done ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
-                  )}
-                  <span
-                    className={cn(
-                      'text-xs',
-                      done
-                        ? 'text-emerald-700 dark:text-emerald-300 line-through'
-                        : 'text-amber-800 dark:text-amber-300',
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                  {!done && <ExternalLink className="h-3 w-3 ml-auto text-amber-500 shrink-0" />}
-                </Link>
-              )
-            })}
+                  {item.label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -283,23 +478,44 @@ function LaunchStep({
   )
 }
 
+// ── Step content registry ────────────────────────────────────────────────────
+
 const STEP_CONTENT: Record<
   OnboardingStep,
-  React.ComponentType<{ tenantSlug?: string | null; state: OnboardingState; tenantName?: string }>
+  React.ComponentType<{
+    tenantSlug?: string | null
+    state: OnboardingState
+    tenantName?: string
+    tenantLogoUrl?: string | null
+    tenantBrandColor?: string | null
+  }>
 > = {
-  branding: ({ tenantSlug }) => <BrandingStep tenantSlug={tenantSlug} />,
-  ai_settings: () => <AiSettingsStep />,
-  services: ({ tenantSlug }) => <ServicesStep tenantSlug={tenantSlug} />,
-  integrations: ({ tenantSlug }) => <IntegrationsStep tenantSlug={tenantSlug} />,
-  reporting: ({ tenantSlug }) => <ReportingStep tenantSlug={tenantSlug} />,
+  branding: ({ tenantSlug, tenantName, tenantLogoUrl, tenantBrandColor }) => (
+    <WelcomeBrandStep
+      tenantSlug={tenantSlug}
+      tenantName={tenantName}
+      tenantLogoUrl={tenantLogoUrl}
+      tenantBrandColor={tenantBrandColor}
+    />
+  ),
+  ai_settings: () => <ConfiguredSummaryStep />,
+  services: ({ tenantSlug }) => <ServicesReviewStep tenantSlug={tenantSlug} />,
+  integrations: () => <ConfiguredSummaryStep />,
+  reporting: ({ tenantSlug }) => <ReportingOverviewStep tenantSlug={tenantSlug} />,
   launch: ({ state, tenantName, tenantSlug }) => (
-    <LaunchStep state={state} tenantName={tenantName} tenantSlug={tenantSlug} />
+    <GoLiveStep state={state} tenantName={tenantName} tenantSlug={tenantSlug} />
   ),
 }
 
 // ── Wizard ───────────────────────────────────────────────────────────────────
 
-export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: OnboardingWizardProps) {
+export function OnboardingWizard({
+  tenantId,
+  tenantSlug,
+  tenantName,
+  tenantLogoUrl,
+  tenantBrandColor,
+}: OnboardingWizardProps) {
   const [state, setState] = useState<OnboardingState | null>(null)
   const [activeStep, setActiveStep] = useState<OnboardingStep>('branding')
   const [dismissed, setDismissed] = useState(false)
@@ -316,23 +532,40 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
 
       if (serverState) {
         serverAvailable.current = true
+        // Auto-complete integrations (managed by Servify)
+        if (!serverState.completedSteps.includes('integrations')) {
+          serverState.completedSteps.push('integrations')
+        }
         setState(serverState)
-        setActiveStep(serverState.currentStep)
+        // Navigate to first visible uncompleted step
+        const firstUncompleted = CLIENT_VISIBLE_STEPS.find(
+          (s) => !serverState.completedSteps.includes(s.key),
+        )
+        setActiveStep(firstUncompleted?.key ?? serverState.currentStep)
         if (serverState.isComplete || serverState.skippedAt) setDismissed(true)
-        // Sync to localStorage so it stays as fallback
         saveOnboardingState(tenantId, serverState)
         return
       }
 
       // 2. Fall back to localStorage
       const localState = getOnboardingState(tenantId)
+      // Auto-complete integrations (managed by Servify)
+      if (!localState.completedSteps.includes('integrations')) {
+        localState.completedSteps.push('integrations')
+        saveOnboardingState(tenantId, localState)
+      }
       setState(localState)
-      setActiveStep(localState.currentStep)
+      const firstUncompleted = CLIENT_VISIBLE_STEPS.find(
+        (s) => !localState.completedSteps.includes(s.key),
+      )
+      setActiveStep(firstUncompleted?.key ?? localState.currentStep)
       if (localState.isComplete || localState.skippedAt) setDismissed(true)
     }
 
     init()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [tenantId])
 
   const handleComplete = useCallback(
@@ -341,10 +574,10 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
       const updated = completeStepLocal(tenantId, step)
       setState(updated)
 
-      // Auto-advance to next step
-      const currentIdx = ONBOARDING_STEPS.findIndex((s) => s.key === step)
-      if (currentIdx < ONBOARDING_STEPS.length - 1) {
-        setActiveStep(ONBOARDING_STEPS[currentIdx + 1].key)
+      // Auto-advance to next visible step
+      const visibleIdx = CLIENT_VISIBLE_STEPS.findIndex((s) => s.key === step)
+      if (visibleIdx < CLIENT_VISIBLE_STEPS.length - 1) {
+        setActiveStep(CLIENT_VISIBLE_STEPS[visibleIdx + 1].key)
       }
 
       // Persist to server (best-effort, non-blocking)
@@ -356,15 +589,15 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
   const handleSkip = useCallback(async () => {
     skipOnboardingLocal(tenantId)
     setDismissed(true)
-    // Persist to server (best-effort)
     persistToServer('dismiss', {})
   }, [tenantId])
 
   // Don't render until hydrated or if dismissed
   if (!state || dismissed) return null
 
+  const visibleSteps = CLIENT_VISIBLE_STEPS
   const activeStepMeta = ONBOARDING_STEPS.find((s) => s.key === activeStep)!
-  const activeIdx = ONBOARDING_STEPS.findIndex((s) => s.key === activeStep)
+  const visibleIdx = visibleSteps.findIndex((s) => s.key === activeStep)
   const percent = getCompletionPercent(state)
   const StepContent = STEP_CONTENT[activeStep]
 
@@ -383,24 +616,24 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
           <div>
             <h3 className="text-sm font-semibold text-[var(--brand-text)] flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-[var(--brand-accent)]" />
-              Get Started with Servify
+              Setup Summary
             </h3>
             <p className="text-[11px] text-[var(--brand-muted)] mt-0.5">
-              {percent}% complete — {ONBOARDING_STEPS.length - state.completedSteps.length} steps remaining
+              {percent}% complete — review your setup before going live
             </p>
           </div>
           <button
             onClick={handleSkip}
             className="shrink-0 text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors p-1"
-            aria-label="Dismiss setup wizard"
+            aria-label="Dismiss setup summary"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Step indicators */}
+        {/* Step indicators (client-visible only — excludes integrations) */}
         <div className="flex gap-1 mb-5">
-          {ONBOARDING_STEPS.map((step) => {
+          {visibleSteps.map((step) => {
             const isCompleted = state.completedSteps.includes(step.key)
             const isActive = step.key === activeStep
             const Icon = STEP_ICONS[step.key]
@@ -417,26 +650,32 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
                 )}
                 aria-label={`${step.title}${isCompleted ? ' (completed)' : ''}`}
               >
-                <div className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
-                  isCompleted && 'bg-emerald-100 dark:bg-emerald-950/40',
-                  isActive && !isCompleted && 'bg-[var(--user-accent)]/10',
-                  !isActive && !isCompleted && 'bg-[var(--brand-border)]/60',
-                )}>
+                <div
+                  className={cn(
+                    'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+                    isCompleted && 'bg-emerald-100 dark:bg-emerald-950/40',
+                    isActive && !isCompleted && 'bg-[var(--user-accent)]/10',
+                    !isActive && !isCompleted && 'bg-[var(--brand-border)]/60',
+                  )}
+                >
                   {isCompleted ? (
                     <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                   ) : (
-                    <Icon className={cn(
-                      'h-3.5 w-3.5',
-                      isActive ? 'text-[var(--user-accent)]' : 'text-[var(--brand-muted)]',
-                    )} />
+                    <Icon
+                      className={cn(
+                        'h-3.5 w-3.5',
+                        isActive ? 'text-[var(--user-accent)]' : 'text-[var(--brand-muted)]',
+                      )}
+                    />
                   )}
                 </div>
-                <span className={cn(
-                  'text-[9px] font-medium leading-tight',
-                  isActive ? 'text-[var(--user-accent)]' : 'text-[var(--brand-muted)]',
-                  isCompleted && 'text-emerald-600 dark:text-emerald-400',
-                )}>
+                <span
+                  className={cn(
+                    'text-[9px] font-medium leading-tight',
+                    isActive ? 'text-[var(--user-accent)]' : 'text-[var(--brand-muted)]',
+                    isCompleted && 'text-emerald-600 dark:text-emerald-400',
+                  )}
+                >
                   {step.title}
                 </span>
               </button>
@@ -447,12 +686,18 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
         {/* Active step content */}
         <div className="rounded-lg border border-[var(--brand-border)] p-4 mb-4">
           <h4 className="text-sm font-medium text-[var(--brand-text)] mb-1">
-            {activeStepMeta.number}. {activeStepMeta.title}
+            {activeStepMeta.title}
           </h4>
           <p className="text-[11px] text-[var(--brand-muted)] mb-3">
             {activeStepMeta.description}
           </p>
-          <StepContent tenantSlug={tenantSlug} state={state} tenantName={tenantName} />
+          <StepContent
+            tenantSlug={tenantSlug}
+            state={state}
+            tenantName={tenantName}
+            tenantLogoUrl={tenantLogoUrl}
+            tenantBrandColor={tenantBrandColor}
+          />
         </div>
 
         {/* Navigation */}
@@ -460,8 +705,12 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
           <Button
             variant="ghost"
             size="sm"
-            disabled={activeIdx === 0}
-            onClick={() => setActiveStep(ONBOARDING_STEPS[activeIdx - 1].key)}
+            disabled={visibleIdx <= 0}
+            onClick={() => {
+              if (visibleIdx > 0) {
+                setActiveStep(visibleSteps[visibleIdx - 1].key)
+              }
+            }}
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             Back
@@ -473,8 +722,8 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (activeIdx < ONBOARDING_STEPS.length - 1) {
-                    setActiveStep(ONBOARDING_STEPS[activeIdx + 1].key)
+                  if (visibleIdx < visibleSteps.length - 1) {
+                    setActiveStep(visibleSteps[visibleIdx + 1].key)
                   }
                 }}
               >
@@ -488,7 +737,7 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
                 size="sm"
                 onClick={() => handleComplete(activeStep)}
               >
-                {state.completedSteps.includes(activeStep) ? 'Next' : 'Mark complete'}
+                {state.completedSteps.includes(activeStep) ? 'Next' : 'Looks good'}
                 <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             ) : (
@@ -501,7 +750,7 @@ export function OnboardingWizard({ tenantId, tenantSlug, tenantName }: Onboardin
                 }}
               >
                 <Rocket className="h-3.5 w-3.5" />
-                Finish setup
+                Enter Dashboard
               </Button>
             )}
           </div>

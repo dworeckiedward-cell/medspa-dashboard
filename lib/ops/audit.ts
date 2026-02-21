@@ -26,6 +26,9 @@ export type AuditAction =
   | 'client_dashboard_opened'
   | 'client_reports_opened'
   | 'client_integrations_opened'
+  | 'partners_console_viewed'
+  | 'partner_detail_viewed'
+  | 'alerts_console_viewed'
 
 export interface AuditEntry {
   operatorId: string

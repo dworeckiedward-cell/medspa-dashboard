@@ -3,11 +3,15 @@ import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
 import { listClientServices } from '@/lib/dashboard/services-query'
 import { listServiceAliases } from '@/lib/dashboard/service-alias-query'
 import { getMockBillingSummary } from '@/lib/dashboard/billing'
+import { getMockUsageSummary, buildBillingUsageSnapshot } from '@/lib/billing/usage'
 import { DashboardLayout } from '@/components/dashboard/layout'
 import { TenantNotFound } from '@/components/shared/tenant-not-found'
 import { ServicesPricingManager } from '@/components/dashboard/services-pricing-manager'
 import { ServiceAliasManager } from '@/components/dashboard/service-alias-manager'
 import { BillingStatusCard } from '@/components/dashboard/billing-status-card'
+import { UsageAllowanceCard } from '@/components/dashboard/usage-allowance-card'
+import { LogoManager } from '@/components/dashboard/logo-manager'
+import { TeamAccessSection } from '@/components/dashboard/team-access-section'
 import {
   AppearanceSection,
   NotificationSection,
@@ -40,6 +44,10 @@ export default async function SettingsPage() {
     listServiceAliases(tenant.id),
   ])
 
+  // Usage allowance snapshot (scaffolded until metering is connected)
+  const usageSummary = getMockUsageSummary(tenant.id)
+  const usageSnapshot = buildBillingUsageSnapshot(usageSummary)
+
   return (
     <DashboardLayout tenant={tenant} followUpCount={0} bookedNotificationCount={0} bookedNotifications={[]}>
       <div className="max-w-2xl mx-auto p-6 pb-16">
@@ -50,6 +58,23 @@ export default async function SettingsPage() {
         </div>
 
         <div className="space-y-8">
+          {/* Clinic Branding — Logo */}
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--brand-text)]">Clinic Branding</h2>
+              <p className="text-xs text-[var(--brand-muted)] mt-0.5">
+                Your clinic logo is displayed in the dashboard header and reports.
+              </p>
+            </div>
+            <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
+              <LogoManager
+                currentLogoUrl={tenant.logo_url}
+                tenantName={tenant.name}
+                brandColor={tenant.brand_color}
+              />
+            </div>
+          </section>
+
           {/* Appearance */}
           <AppearanceSection />
 
@@ -89,7 +114,21 @@ export default async function SettingsPage() {
                 Your Servify subscription status and payment details.
               </p>
             </div>
-            <BillingStatusCard billing={billing} />
+            <BillingStatusCard billing={billing} usageSnapshot={usageSnapshot} />
+            <UsageAllowanceCard snapshot={usageSnapshot} periodEndAt={usageSummary.periodEndAt} />
+          </section>
+
+          {/* Team & Access */}
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--brand-text)]">Team & Access</h2>
+              <p className="text-xs text-[var(--brand-muted)] mt-0.5">
+                Manage who has access to this workspace. Invite teammates and assign roles.
+              </p>
+            </div>
+            <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
+              <TeamAccessSection currentUserRole="owner" />
+            </div>
           </section>
 
           {/* Notifications */}

@@ -20,6 +20,8 @@ interface BillingStatusCardProps {
     deliveriesSent: number
     reportsGenerated: number
   }
+  /** Usage snapshot for billing-aware usage rows */
+  usageSnapshot?: import('@/lib/billing/types').BillingUsageSnapshot | null
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -31,7 +33,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-export function BillingStatusCard({ billing, usageMetrics }: BillingStatusCardProps) {
+export function BillingStatusCard({ billing, usageMetrics, usageSnapshot }: BillingStatusCardProps) {
   // ── Empty state ──────────────────────────────────────────────────────────────
   if (!billing) {
     return (
@@ -123,6 +125,29 @@ export function BillingStatusCard({ billing, usageMetrics }: BillingStatusCardPr
                 <span className="font-mono tracking-widest">••••&nbsp;{billing.paymentMethodLast4}</span>
               </span>
             </Row>
+          )}
+
+          {/* Usage-aware billing rows */}
+          {usageSnapshot && usageSnapshot.isMeteringConnected && usageSnapshot.primaryAllowance && (
+            <>
+              <Row label="Monthly allowance">
+                <span className="tabular-nums">
+                  {usageSnapshot.primaryAllowance.allowanceIncluded.toLocaleString()} {usageSnapshot.primaryAllowance.metricLabel}
+                </span>
+              </Row>
+              <Row label="Current usage">
+                <span className="tabular-nums">
+                  {usageSnapshot.primaryAllowance.usagePercent}% used
+                </span>
+              </Row>
+              {usageSnapshot.overagePreview && (
+                <Row label="Overage estimate">
+                  <span className="text-rose-600 dark:text-rose-400 tabular-nums">
+                    ${(usageSnapshot.overagePreview.totalOverageEstimateCents / 100).toFixed(2)}
+                  </span>
+                </Row>
+              )}
+            </>
           )}
         </div>
 
