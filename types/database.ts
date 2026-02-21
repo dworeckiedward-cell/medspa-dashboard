@@ -208,6 +208,27 @@ export interface CrmDeliveryLog {
   created_at: string
 }
 
+// ─── Client integrations (migration 008) ─────────────────────────────────────
+
+export interface ClientIntegrationDb {
+  id: string
+  client_id: string
+  provider: string                              // 'custom_webhook' | 'hubspot' | 'ghl'
+  name: string                                  // display label
+  status: string                                // 'connected' | 'disconnected' | 'error' | 'testing'
+  is_enabled: boolean
+  config: Record<string, unknown>               // full config with secrets (server-only)
+  secrets_masked: Record<string, unknown> | null
+  event_toggles: Record<string, boolean>        // e.g. {"call.completed":true}
+  event_mapping: Record<string, string>         // local event → remote event name
+  last_test_at: string | null
+  last_success_at: string | null
+  last_error_at: string | null
+  last_error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
 // ─── Tenant context (passed via request headers set by middleware) ─────────────
 
 export interface ResolvedTenant {

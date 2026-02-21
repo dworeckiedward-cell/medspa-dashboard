@@ -3,8 +3,9 @@ import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
 import { DashboardLayout } from '@/components/dashboard/layout'
 import { IntegrationsCenter } from '@/components/dashboard/integrations-center'
 import { TenantNotFound } from '@/components/shared/tenant-not-found'
-import { getMockIntegrations } from '@/lib/dashboard/mock-data'
 import { listCrmDeliveryLogs } from '@/lib/integrations/crm/query'
+import { listClientIntegrations } from '@/lib/integrations/crm/config-query'
+import { computeHealthSummary } from '@/lib/integrations/crm/health'
 import type { BookedNotification } from '@/components/dashboard/notification-bell'
 
 export const dynamic = 'force-dynamic'
@@ -21,11 +22,13 @@ export default async function IntegrationsPage() {
     )
   }
 
-  // Real delivery logs from DB — newest first, up to 100 rows
-  const deliveryLogs = await listCrmDeliveryLogs(tenant.id, undefined, 100)
+  // Fetch integrations + delivery logs in parallel
+  const [integrations, deliveryLogs] = await Promise.all([
+    listClientIntegrations(tenant.id),
+    listCrmDeliveryLogs(tenant.id, undefined, 100),
+  ])
 
-  // Integration config — still mock until an integrations table exists
-  const integrations = getMockIntegrations(tenant.id)
+  const healthSummary = computeHealthSummary(integrations, deliveryLogs)
 
   const bookedNotifications: BookedNotification[] = []
 
@@ -40,6 +43,7 @@ export default async function IntegrationsPage() {
         <IntegrationsCenter
           integrations={integrations}
           deliveryLogs={deliveryLogs}
+          healthSummary={healthSummary}
           tenant={tenant}
         />
       </div>

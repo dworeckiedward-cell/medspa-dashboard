@@ -27,6 +27,7 @@ const dict = {
       callLogs: 'Call Logs',
       followUp: 'Follow-up',
       integrations: 'Integrations',
+      reports: 'Reports & ROI',
       settings: 'Settings',
       aiReceptionist: 'AI Receptionist',
     },
@@ -156,6 +157,7 @@ const dict = {
       callLogs: 'Dziennik połączeń',
       followUp: 'Follow-up',
       integrations: 'Integracje',
+      reports: 'Raporty i ROI',
       settings: 'Ustawienia',
       aiReceptionist: 'Asystent AI',
     },
@@ -284,6 +286,7 @@ const dict = {
       callLogs: 'Registro de llamadas',
       followUp: 'Seguimiento',
       integrations: 'Integraciones',
+      reports: 'Informes y ROI',
       settings: 'Configuración',
       aiReceptionist: 'Recepcionista IA',
     },
@@ -413,7 +416,7 @@ const dict = {
 export type TranslationDict = {
   nav: {
     dashboard: string; leads: string; callLogs: string; followUp: string
-    integrations: string; settings: string; aiReceptionist: string
+    integrations: string; reports: string; settings: string; aiReceptionist: string
   }
   settings: {
     pageTitle: string; pageSubtitle: string; appearance: string; appearanceDesc: string

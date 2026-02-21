@@ -1,6 +1,6 @@
 'use client'
 
-import { ExternalLink, CreditCard, Calendar, Zap } from 'lucide-react'
+import { ExternalLink, CreditCard, Calendar, Zap, BarChart3, Phone, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -14,6 +14,12 @@ import { cn } from '@/lib/utils'
 
 interface BillingStatusCardProps {
   billing: BillingSummary | null
+  /** Usage metrics for the current billing period */
+  usageMetrics?: {
+    callsHandled: number
+    deliveriesSent: number
+    reportsGenerated: number
+  }
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -25,7 +31,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-export function BillingStatusCard({ billing }: BillingStatusCardProps) {
+export function BillingStatusCard({ billing, usageMetrics }: BillingStatusCardProps) {
   // ── Empty state ──────────────────────────────────────────────────────────────
   if (!billing) {
     return (
@@ -43,8 +49,9 @@ export function BillingStatusCard({ billing }: BillingStatusCardProps) {
             </div>
             <div>
               <p className="text-sm font-medium text-[var(--brand-text)]">No billing configured</p>
-              <p className="text-xs text-[var(--brand-muted)] mt-0.5">
-                Contact support to set up your subscription.
+              <p className="text-xs text-[var(--brand-muted)] mt-1 max-w-xs mx-auto">
+                Connect your billing to track subscription status, usage metrics,
+                and manage your plan directly from the dashboard.
               </p>
             </div>
           </div>
@@ -118,6 +125,26 @@ export function BillingStatusCard({ billing }: BillingStatusCardProps) {
             </Row>
           )}
         </div>
+
+        {/* Usage snapshot */}
+        {usageMetrics && (
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {[
+              { label: 'Calls', value: usageMetrics.callsHandled, icon: Phone, color: 'var(--brand-primary)' },
+              { label: 'Deliveries', value: usageMetrics.deliveriesSent, icon: BarChart3, color: '#10B981' },
+              { label: 'Reports', value: usageMetrics.reportsGenerated, icon: FileText, color: 'var(--brand-accent)' },
+            ].map((m) => {
+              const Icon = m.icon
+              return (
+                <div key={m.label} className="rounded-lg border border-[var(--brand-border)] p-2.5 text-center">
+                  <Icon className="h-3.5 w-3.5 mx-auto mb-1" style={{ color: m.color }} />
+                  <p className="text-sm font-bold text-[var(--brand-text)] tabular-nums">{m.value}</p>
+                  <p className="text-[9px] text-[var(--brand-muted)]">{m.label}</p>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Manage billing CTA */}
         <a

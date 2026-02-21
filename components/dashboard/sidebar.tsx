@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Phone, Settings, Menu, X, Sparkles, Users, Bell, Plug } from 'lucide-react'
+import { LayoutDashboard, Phone, Settings, Menu, X, Sparkles, Users, Bell, Plug, BarChart3 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { buildDashboardHref } from '@/lib/dashboard/link'
 import { useAccent } from '@/lib/dashboard/accent'
@@ -45,6 +45,8 @@ interface NavItemDef {
   href: string
   icon: React.ElementType
   exact: boolean
+  /** Visual separator rendered above this item */
+  separator?: boolean
 }
 
 const NAV_ITEMS: NavItemDef[] = [
@@ -79,10 +81,17 @@ const NAV_ITEMS: NavItemDef[] = [
     exact: true,
   },
   {
+    labelFn: (t) => t.nav.reports,
+    href: '/dashboard/reports',
+    icon: BarChart3,
+    exact: true,
+  },
+  {
     labelFn: (t) => t.nav.settings,
     href: '/dashboard/settings',
     icon: Settings,
     exact: false, // allow future sub-routes under /dashboard/settings/*
+    separator: true,
   },
 ]
 
@@ -106,75 +115,96 @@ function SidebarNav({ tenant, pathname, t, onNavClick }: SidebarNavProps) {
       {/* Logo + brand */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-[var(--brand-border)]">
         <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white font-bold text-sm"
-          style={{ background: 'var(--brand-primary)' }}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white font-bold text-sm shadow-sm"
+          style={{
+            background: 'var(--brand-primary)',
+            boxShadow: '0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent)',
+          }}
         >
           {tenant.logo_url ? (
             <Image
               src={tenant.logo_url}
               alt={tenant.name}
-              width={36}
-              height={36}
-              className="rounded-lg object-cover"
+              width={40}
+              height={40}
+              className="rounded-xl object-cover"
             />
           ) : (
             logoLetter
           )}
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-sm text-[var(--brand-text)] truncate leading-tight">
+          <p className="font-semibold text-[13px] text-[var(--brand-text)] truncate leading-tight">
             {tenant.name}
           </p>
-          <p className="text-xs text-[var(--brand-muted)] leading-tight mt-0.5">
+          <p className="text-[11px] text-[var(--brand-muted)] leading-tight mt-0.5">
             {t.nav.aiReceptionist}
           </p>
         </div>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-0.5 px-3 py-4" aria-label="Main navigation">
+      <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Main navigation">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon
           const label = item.labelFn(t)
           const isActive = isNavItemActive(item.href, pathname, item.exact)
 
           return (
-            <Link
-              key={item.href}
-              href={buildDashboardHref(item.href, tenant.slug)}
-              onClick={onNavClick}
-              aria-current={isActive ? 'page' : undefined}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
-                'transition-colors duration-150 motion-reduce:transition-none',
-                // Non-active hover/default — uses brand-primary (tenant color)
-                !isActive && 'text-[var(--brand-muted)] hover:bg-[var(--brand-primary)]/10 hover:text-[var(--brand-text)]',
-                // Active — styled via inline style below (user-accent CSS var)
-                isActive && 'font-semibold',
+            <div key={item.href}>
+              {/* Separator before grouped utility items (e.g. Settings) */}
+              {item.separator && (
+                <div className="mx-2 my-2 border-t border-[var(--brand-border)]" />
               )}
-              // Active item uses user-accent CSS vars (set synchronously by
-              // the blocking script in layout.tsx — no flash before React mounts)
-              style={
-                isActive
-                  ? {
-                      background: 'var(--user-accent-soft)',
-                      color: 'var(--user-accent)',
-                    }
-                  : undefined
-              }
-            >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {label}
-            </Link>
+
+              <Link
+                href={buildDashboardHref(item.href, tenant.slug)}
+                onClick={onNavClick}
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium',
+                  'transition-all duration-150 motion-reduce:transition-none',
+                  // Non-active hover/default
+                  !isActive && [
+                    'text-[var(--brand-muted)]',
+                    'hover:bg-[var(--brand-primary)]/[0.06] hover:text-[var(--brand-text)]',
+                    'hover:translate-x-px',
+                  ],
+                  // Active — styled via inline style below (user-accent CSS var)
+                  isActive && 'font-semibold',
+                )}
+                // Active item uses user-accent CSS vars (set synchronously by
+                // the blocking script in layout.tsx — no flash before React mounts)
+                style={
+                  isActive
+                    ? {
+                        background: 'var(--user-accent-soft)',
+                        color: 'var(--user-accent)',
+                      }
+                    : undefined
+                }
+              >
+                {/* Active indicator bar */}
+                {isActive && (
+                  <span
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full"
+                    style={{ background: 'var(--user-accent)' }}
+                    aria-hidden="true"
+                  />
+                )}
+                <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                {label}
+              </Link>
+            </div>
           )
         })}
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-[var(--brand-border)] px-5 py-4">
-        <div className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity duration-200">
+      <div className="border-t border-[var(--brand-border)] px-4 py-3">
+        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 opacity-50 hover:opacity-90 transition-opacity duration-200">
           <Sparkles className="h-3.5 w-3.5 text-[var(--brand-accent)]" aria-hidden="true" />
-          <span className="text-xs text-[var(--brand-muted)]">{t.common.poweredByServify}</span>
+          <span className="text-[11px] text-[var(--brand-muted)]">{t.common.poweredByServify}</span>
         </div>
       </div>
     </div>
@@ -204,7 +234,7 @@ export function Sidebar({ tenant }: SidebarProps) {
     <>
       {/* Desktop sidebar */}
       <aside
-        className="hidden lg:flex w-60 shrink-0 flex-col border-r border-[var(--brand-border)] bg-[var(--brand-surface)] transition-colors duration-200"
+        className="hidden lg:flex w-[248px] shrink-0 flex-col border-r border-[var(--brand-border)] bg-[var(--brand-surface)] transition-colors duration-200"
         aria-label="Sidebar"
       >
         <SidebarNav {...navProps} />
@@ -212,7 +242,13 @@ export function Sidebar({ tenant }: SidebarProps) {
 
       {/* Mobile: hamburger button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 rounded-md p-2 text-[var(--brand-muted)] hover:text-[var(--brand-text)] bg-[var(--brand-surface)] border border-[var(--brand-border)] shadow-sm"
+        className={cn(
+          'lg:hidden fixed top-4 left-4 z-50 rounded-lg p-2',
+          'text-[var(--brand-muted)] hover:text-[var(--brand-text)]',
+          'bg-[var(--brand-surface)] border border-[var(--brand-border)]',
+          'shadow-sm hover:shadow transition-all duration-150',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-bg)]',
+        )}
         onClick={() => setMobileOpen(!mobileOpen)}
         aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
         aria-expanded={mobileOpen}
@@ -230,7 +266,7 @@ export function Sidebar({ tenant }: SidebarProps) {
             aria-hidden="true"
           />
           <aside
-            className="lg:hidden fixed left-0 top-0 z-50 h-full w-60 flex flex-col border-r border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl"
+            className="lg:hidden fixed left-0 top-0 z-50 h-full w-[248px] flex flex-col border-r border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl sidebar-slide-in"
             aria-label="Mobile sidebar"
           >
             <SidebarNav {...navProps} />

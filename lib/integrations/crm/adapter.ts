@@ -72,14 +72,15 @@ export interface CrmAdapter {
 
 import type { IntegrationProvider } from '@/lib/types/domain'
 import { CustomWebhookAdapter } from './providers/custom-webhook'
+import { HubSpotAdapter } from './providers/hubspot'
+import { GhlAdapter } from './providers/ghl'
 
 type AdapterFactory = (config: Record<string, unknown>) => CrmAdapter
 
 const ADAPTER_REGISTRY: Partial<Record<IntegrationProvider, AdapterFactory>> = {
   custom_webhook: (config) => new CustomWebhookAdapter(config),
-  // hubspot:  (config) => new HubSpotAdapter(config),  // TODO: implement
-  // ghl:      (config) => new GhlAdapter(config),       // TODO: implement
-  // pipedrive:(config) => new PipedriveAdapter(config), // TODO: implement
+  hubspot:        (config) => new HubSpotAdapter(config),
+  ghl:            (config) => new GhlAdapter(config),
 }
 
 export function resolveAdapter(

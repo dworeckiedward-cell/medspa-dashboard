@@ -1,0 +1,87 @@
+'use client'
+
+/**
+ * QuickActionsStrip — operator shortcut bar for common dashboard actions.
+ *
+ * Renders a horizontal row of quick action buttons. Each action
+ * either navigates to an existing route or triggers a UI action.
+ * No fake functionality — every button does something real.
+ */
+
+import Link from 'next/link'
+import { Plus, Plug, BarChart3, AlertTriangle, Zap } from 'lucide-react'
+import { buildDashboardHref } from '@/lib/dashboard/link'
+
+interface QuickActionsStripProps {
+  tenantSlug?: string | null
+  /** Number of failed delivery logs (shows alert badge) */
+  failedDeliveries?: number
+}
+
+interface QuickAction {
+  label: string
+  icon: React.ElementType
+  href: string
+  badge?: number
+  color: string
+}
+
+export function QuickActionsStrip({ tenantSlug, failedDeliveries = 0 }: QuickActionsStripProps) {
+  const actions: QuickAction[] = [
+    {
+      label: 'Add Service',
+      icon: Plus,
+      href: '/dashboard/settings',
+      color: 'var(--brand-primary)',
+    },
+    {
+      label: 'Integrations',
+      icon: Plug,
+      href: '/dashboard/integrations',
+      color: '#6366F1',
+    },
+    {
+      label: 'Reports',
+      icon: BarChart3,
+      href: '/dashboard/reports',
+      color: '#10B981',
+    },
+    {
+      label: 'Failed Deliveries',
+      icon: AlertTriangle,
+      href: '/dashboard/integrations',
+      badge: failedDeliveries > 0 ? failedDeliveries : undefined,
+      color: failedDeliveries > 0 ? '#EF4444' : 'var(--brand-muted)',
+    },
+  ]
+
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+      <div className="flex items-center gap-1.5 text-[var(--brand-muted)]">
+        <Zap className="h-3.5 w-3.5" />
+        <span className="text-[11px] font-medium whitespace-nowrap">Quick actions</span>
+      </div>
+
+      <div className="h-4 w-px bg-[var(--brand-border)] mx-1" />
+
+      {actions.map((action) => {
+        const Icon = action.icon
+        return (
+          <Link
+            key={action.label}
+            href={buildDashboardHref(action.href, tenantSlug)}
+            className="relative flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-[11px] font-medium text-[var(--brand-text)] hover:border-[var(--brand-text)]/20 hover:shadow-sm transition-all duration-150 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--brand-bg)]"
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: action.color }} />
+            {action.label}
+            {action.badge != null && action.badge > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white leading-none">
+                {action.badge > 99 ? '99+' : action.badge}
+              </span>
+            )}
+          </Link>
+        )
+      })}
+    </div>
+  )
+}

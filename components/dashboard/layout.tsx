@@ -1,9 +1,14 @@
+'use client'
+
 import type { Client } from '@/types/database'
 import type { BookedNotification } from './notification-bell'
 import { Sidebar } from './sidebar'
 import { Header } from './header'
 import { BrandedLoader } from './loading-overlay'
 import { CommandPalette } from './command-palette'
+import { ToastProvider } from './toast-provider'
+import { PresentationModeProvider, usePresentationMode } from '@/lib/dashboard/presentation-mode'
+import { cn } from '@/lib/utils'
 
 interface DashboardLayoutProps {
   tenant: Client
@@ -21,33 +26,57 @@ export function DashboardLayout({
   bookedNotifications,
 }: DashboardLayoutProps) {
   return (
-    <>
-      {/* Branded splash — shown once per tab session, fades out before UI is interactive */}
-      <BrandedLoader
-        tenantName={tenant.name}
-        logoUrl={tenant.logo_url}
-        brandColor={tenant.brand_color ?? '#2563EB'}
-      />
+    <PresentationModeProvider>
+      <ToastProvider>
+        <BrandedLoader
+          tenantName={tenant.name}
+          logoUrl={tenant.logo_url}
+          brandColor={tenant.brand_color ?? '#2563EB'}
+        />
+        <CommandPalette tenant={tenant} />
+        <DashboardShell
+          tenant={tenant}
+          followUpCount={followUpCount}
+          bookedNotificationCount={bookedNotificationCount}
+          bookedNotifications={bookedNotifications}
+        >
+          {children}
+        </DashboardShell>
+      </ToastProvider>
+    </PresentationModeProvider>
+  )
+}
 
-      {/* Cmd+K command palette — global, outside the layout grid */}
-      <CommandPalette tenant={tenant} />
+// ── Inner shell — reads presentation mode from context ──────────────────────
 
-      <div className="flex h-screen overflow-hidden bg-[var(--brand-bg)] transition-colors duration-200">
-        <Sidebar tenant={tenant} />
+function DashboardShell({
+  tenant,
+  children,
+  followUpCount,
+  bookedNotificationCount,
+  bookedNotifications,
+}: DashboardLayoutProps) {
+  const { isPresenting } = usePresentationMode()
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Header
-            tenant={tenant}
-            followUpCount={followUpCount}
-            bookedNotificationCount={bookedNotificationCount}
-            bookedNotifications={bookedNotifications}
-          />
+  return (
+    <div className="flex h-screen overflow-hidden bg-[var(--brand-bg)] transition-colors duration-200">
+      {/* Sidebar — collapses in presentation mode */}
+      {!isPresenting && <Sidebar tenant={tenant} />}
 
-          <main className="flex-1 overflow-y-auto">
-            {children}
-          </main>
-        </div>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Header
+          tenant={tenant}
+          followUpCount={followUpCount}
+          bookedNotificationCount={bookedNotificationCount}
+          bookedNotifications={bookedNotifications}
+        />
+
+        <main className={cn(
+          'flex-1 overflow-y-auto scroll-smooth scrollbar-thin',
+        )}>
+          {children}
+        </main>
       </div>
-    </>
+    </div>
   )
 }

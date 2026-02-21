@@ -25,6 +25,8 @@ import type {
 } from './types'
 import type { CrmAdapter } from './adapter'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { getIntegrationRawConfig } from './config-query'
+import { recordTestResult } from './config-mutations'
 
 // ── Public types ───────────────────────────────────────────────────────────────
 
@@ -229,4 +231,105 @@ export async function deliverCrmEvent(envelope: CrmEventEnvelope): Promise<CrmDe
     responseStatus,
     latencyMs,
   }
+}
+
+// ── DB-backed delivery (resolves config from client_integrations) ────────────
+
+export interface CrmIntegrationEventEnvelope {
+  /** Tenant UUID (= client_id in the DB) */
+  tenantId: string
+  /** client_integrations row ID */
+  integrationId: string
+  /** Domain event type, e.g. 'call.completed' */
+  eventType: string
+  /** Optional correlation ID */
+  eventId?: string
+  /** The domain object to deliver */
+  payload: Record<string, unknown>
+}
+
+/**
+ * Deliver a CRM event using DB-backed integration config.
+ * Resolves config from client_integrations, checks event toggles,
+ * then delegates to deliverCrmEvent.
+ * Also records test result on the integration row.
+ */
+export async function deliverCrmEventViaIntegration(
+  envelope: CrmIntegrationEventEnvelope,
+): Promise<CrmDeliveryResult> {
+  const start = Date.now()
+
+  // ── 1. Load integration config from DB ─────────────────────────────────────
+  const integrationConfig = await getIntegrationRawConfig(
+    envelope.tenantId,
+    envelope.integrationId,
+  )
+
+  if (!integrationConfig) {
+    return {
+      success: false,
+      logId: null,
+      errorCode: 'NOT_CONFIGURED',
+      errorMessage: `Integration not found: ${envelope.integrationId}`,
+      latencyMs: Date.now() - start,
+    }
+  }
+
+  // ── 2. Check if integration is enabled and connected ──────────────────────
+  if (!integrationConfig.isEnabled) {
+    return {
+      success: false,
+      logId: null,
+      errorCode: 'SKIPPED_NOT_CONNECTED',
+      errorMessage: 'Integration is disabled',
+      latencyMs: Date.now() - start,
+    }
+  }
+
+  if (integrationConfig.status !== 'connected' && integrationConfig.status !== 'testing') {
+    return {
+      success: false,
+      logId: null,
+      errorCode: 'SKIPPED_NOT_CONNECTED',
+      errorMessage: `Integration status is "${integrationConfig.status}"`,
+      latencyMs: Date.now() - start,
+    }
+  }
+
+  // ── 3. Check event toggles ─────────────────────────────────────────────────
+  const toggles = integrationConfig.eventToggles
+  if (toggles && toggles[envelope.eventType] === false) {
+    return {
+      success: false,
+      logId: null,
+      errorCode: 'SKIPPED_DISABLED',
+      errorMessage: `Event "${envelope.eventType}" is disabled for this integration`,
+      latencyMs: Date.now() - start,
+    }
+  }
+
+  // ── 4. Delegate to existing delivery function ──────────────────────────────
+  const result = await deliverCrmEvent({
+    tenantId: envelope.tenantId,
+    provider: integrationConfig.provider as IntegrationProvider,
+    providerConfig: integrationConfig.config,
+    eventType: envelope.eventType,
+    eventId: envelope.eventId,
+    payload: envelope.payload,
+  })
+
+  // ── 5. Update integration status based on result ──────────────────────────
+  try {
+    await recordTestResult(
+      envelope.tenantId,
+      envelope.integrationId,
+      result.success,
+      result.errorMessage,
+    )
+  } catch {
+    // Non-fatal — don't let status update failure break delivery
+    console.error('[crm/delivery] Failed to record result on integration row')
+  }
+
+  return result
 }

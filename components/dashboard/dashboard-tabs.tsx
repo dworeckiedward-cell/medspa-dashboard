@@ -23,6 +23,10 @@ import { CallDetailPanel } from './call-detail-panel'
 import { ConversionTimeline } from './conversion-timeline'
 import { WeeklyReportCard } from './weekly-report-card'
 import { TopServicesCard } from './top-services-card'
+import { QuickActionsStrip } from './quick-actions-strip'
+import { SystemStatusCard } from './system-status-card'
+import { OnboardingWizard } from './onboarding-wizard'
+import { NextActionCard } from './next-action-card'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { DashboardMetrics, CallLog, Client } from '@/types/database'
 import type { ClientService } from '@/lib/types/domain'
@@ -37,6 +41,13 @@ interface DashboardTabsProps {
   clientId: string
   tenant: Client
   services: ClientService[]
+  /** Number of failed CRM delivery logs (for quick actions badge) */
+  failedDeliveries?: number
+  /** Integration health counts (for system status card) */
+  integrationsCount?: number
+  integrationsHealthy?: number
+  /** Billing summary (for system status card) */
+  billing?: import('@/lib/types/domain').BillingSummary | null
 }
 
 type MainTab = 'overview' | 'inbound' | 'outbound'
@@ -58,7 +69,7 @@ function TabBar<T extends string>({
   return (
     <div
       className={cn(
-        'flex gap-0 border-b border-[var(--brand-border)]',
+        'flex gap-1 border-b border-[var(--brand-border)]',
         size === 'sm' && 'mt-4',
       )}
       role="tablist"
@@ -72,16 +83,24 @@ function TabBar<T extends string>({
             aria-selected={isActive}
             onClick={() => onSelect(tab.key)}
             className={cn(
-              'px-4 border-b-2 font-medium transition-colors duration-150',
+              'relative px-4 font-medium transition-colors duration-150',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset',
               'focus-visible:ring-[var(--user-accent)] motion-reduce:transition-none',
-              size === 'md' ? 'py-3 text-sm' : 'py-2 text-xs',
+              size === 'md' ? 'py-3 text-[13px]' : 'py-2 text-xs',
               isActive
-                ? 'border-[var(--user-accent)] text-[var(--user-accent)]'
-                : 'border-transparent text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:border-[var(--brand-border)]',
+                ? 'text-[var(--user-accent)]'
+                : 'text-[var(--brand-muted)] hover:text-[var(--brand-text)]',
             )}
           >
             {tab.label}
+            {/* Active indicator — thicker, rounded bottom bar */}
+            {isActive && (
+              <span
+                className="absolute bottom-0 left-2 right-2 h-[2px] rounded-t-full"
+                style={{ background: 'var(--user-accent)' }}
+                aria-hidden="true"
+              />
+            )}
           </button>
         )
       })}
@@ -160,10 +179,38 @@ function OverviewTab({
   tenant,
   services,
   onSelectCall,
+  failedDeliveries,
+  integrationsCount,
+  integrationsHealthy,
+  billing,
 }: DashboardTabsProps & { onSelectCall: (log: CallLog) => void }) {
   return (
     <div className="space-y-6 p-6 animate-fade-in">
+      {/* Onboarding wizard (dismissible, DB-backed with localStorage fallback) */}
+      <OnboardingWizard
+        tenantId={tenant.id}
+        tenantSlug={tenant.slug}
+        tenantName={tenant.name}
+      />
+
+      {/* Next recommended action when setup is incomplete (shown after wizard is dismissed) */}
+      <NextActionCard tenantId={tenant.id} tenantSlug={tenant.slug} />
+
+      {/* Quick actions strip */}
+      <QuickActionsStrip
+        tenantSlug={tenant.slug}
+        failedDeliveries={failedDeliveries}
+      />
+
       <KpiCards metrics={metrics} currency={currency} />
+
+      {/* System status snapshot */}
+      <SystemStatusCard
+        callLogs={callLogs}
+        integrationsCount={integrationsCount}
+        integrationsHealthy={integrationsHealthy}
+        billing={billing}
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">

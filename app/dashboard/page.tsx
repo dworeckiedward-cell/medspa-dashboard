@@ -2,6 +2,10 @@ import { redirect } from 'next/navigation'
 import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
 import { getDashboardMetrics, getCallLogs } from '@/lib/dashboard/metrics'
 import { listActiveClientServices } from '@/lib/dashboard/services-query'
+import { listClientIntegrations } from '@/lib/integrations/crm/config-query'
+import { computeHealthSummary } from '@/lib/integrations/crm/health'
+import { listCrmDeliveryLogs } from '@/lib/integrations/crm/query'
+import { getMockBillingSummary } from '@/lib/dashboard/billing'
 import { DashboardLayout } from '@/components/dashboard/layout'
 import { DashboardTabs } from '@/components/dashboard/dashboard-tabs'
 import { TenantNotFound } from '@/components/shared/tenant-not-found'
@@ -22,12 +26,22 @@ export default async function DashboardPage() {
     )
   }
 
-  // Parallel data fetch — metrics, call logs, and active services load simultaneously
+  // Parallel data fetch — metrics, call logs, services, integrations, billing
   // SECURITY: client_id sourced from trusted tenant config, not URL
-  const [metrics, { data: callLogs, count: totalCount }, activeServices] = await Promise.all([
+  const [
+    metrics,
+    { data: callLogs, count: totalCount },
+    activeServices,
+    integrations,
+    deliveryLogs,
+    billing,
+  ] = await Promise.all([
     getDashboardMetrics(tenant.id),
     getCallLogs(tenant.id, { limit: 100 }),
     listActiveClientServices(tenant.id),
+    listClientIntegrations(tenant.id),
+    listCrmDeliveryLogs(tenant.id, undefined, 50),
+    Promise.resolve(getMockBillingSummary(tenant.id)),
   ])
 
   const followUpCount = callLogs.filter((c) => c.human_followup_needed).length
@@ -47,6 +61,10 @@ export default async function DashboardPage() {
 
   const bookedNotificationCount = callLogs.filter((c) => c.is_booked).length
 
+  // Integration health for system status card
+  const healthSummary = computeHealthSummary(integrations, deliveryLogs)
+  const failedDeliveries = deliveryLogs.filter((l) => !l.success).length
+
   return (
     <DashboardLayout
       tenant={tenant}
@@ -54,8 +72,6 @@ export default async function DashboardPage() {
       bookedNotificationCount={bookedNotificationCount}
       bookedNotifications={bookedNotifications}
     >
-      {/* DashboardTabs is a client component — receives all server-fetched data
-          as serializable props and renders the Overview / Inbound / Outbound tabs */}
       <DashboardTabs
         metrics={metrics}
         callLogs={callLogs}
@@ -64,6 +80,10 @@ export default async function DashboardPage() {
         clientId={tenant.id}
         tenant={tenant}
         services={activeServices}
+        failedDeliveries={failedDeliveries}
+        integrationsCount={integrations.length}
+        integrationsHealthy={healthSummary.activeIntegrations}
+        billing={billing}
       />
     </DashboardLayout>
   )

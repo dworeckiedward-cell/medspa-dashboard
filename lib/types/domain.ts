@@ -196,6 +196,42 @@ export interface IntegrationSyncLog {
   createdAt: string
 }
 
+// ─── Client Integrations (DB-backed, migration 008) ─────────────────────────
+
+export type ClientIntegrationStatus = 'connected' | 'disconnected' | 'error' | 'testing'
+
+/** Domain view of a client_integrations row — secrets stripped, safe for UI. */
+export interface ClientIntegration {
+  id: string
+  tenantId: string
+  provider: IntegrationProvider
+  name: string
+  status: ClientIntegrationStatus
+  isEnabled: boolean
+  /** Masked secrets only — never raw config. */
+  secretsMasked: Record<string, unknown> | null
+  eventToggles: Record<string, boolean>
+  eventMapping: Record<string, string>
+  lastTestAt: string | null
+  lastSuccessAt: string | null
+  lastErrorAt: string | null
+  lastErrorMessage: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Health badge derived from integration status + recent delivery history. */
+export type IntegrationHealthLevel = 'healthy' | 'attention' | 'failing' | 'not_configured'
+
+export interface IntegrationHealthSummary {
+  totalIntegrations: number
+  activeIntegrations: number
+  failingIntegrations: number
+  deliveries24h: number
+  failures24h: number
+  failureRate24h: number | null
+}
+
 // ─── CRM delivery log ─────────────────────────────────────────────────────────
 
 /**
@@ -203,12 +239,15 @@ export interface IntegrationSyncLog {
  * Stored in crm_delivery_logs.error_code.
  */
 export type CrmDeliveryErrorCode =
-  | 'NOT_CONFIGURED'   // No adapter / config missing for this provider
-  | 'NOT_IMPLEMENTED'  // Adapter stub not yet implemented (e.g. HubSpot placeholder)
-  | 'TIMEOUT'          // AbortController / fetch timeout
-  | 'NETWORK_ERROR'    // ECONNREFUSED, DNS failure, etc.
-  | 'HTTP_ERROR'       // Non-2xx HTTP response from CRM
-  | 'UNKNOWN_ERROR'    // Anything else
+  | 'NOT_CONFIGURED'      // No adapter / config missing for this provider
+  | 'NOT_IMPLEMENTED'     // Adapter stub not yet implemented (e.g. HubSpot placeholder)
+  | 'TIMEOUT'             // AbortController / fetch timeout
+  | 'NETWORK_ERROR'       // ECONNREFUSED, DNS failure, etc.
+  | 'HTTP_ERROR'          // Non-2xx HTTP response from CRM
+  | 'SKIPPED_DISABLED'    // Event toggle is off for this event type
+  | 'SKIPPED_NOT_CONNECTED' // Integration is disconnected or disabled
+  | 'VALIDATION_ERROR'    // Payload validation failed
+  | 'UNKNOWN_ERROR'       // Anything else
 
 export interface CrmDeliveryLog {
   id: string
