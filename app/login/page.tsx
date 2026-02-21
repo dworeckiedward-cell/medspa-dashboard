@@ -6,7 +6,7 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ServifyMark } from '@/components/branding/servify-mark'
+import { ServifyLogo } from '@/components/branding/servify-logo'
 
 // ── Login copy variants ─────────────────────────────────────────────────────
 // Swap ACTIVE_COPY to use a different variant. Only one is rendered at a time.
@@ -108,7 +108,7 @@ export default function LoginPage() {
           {/* Top — brand mark */}
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
-              <ServifyMark variant="icon" className="text-blue-400" />
+              <ServifyLogo size="md" />
             </div>
             <div>
               <p className="text-white font-semibold text-lg leading-tight">Servify</p>
@@ -169,7 +169,7 @@ export default function LoginPage() {
           {/* Mobile-only brand mark */}
           <div className="lg:hidden flex items-center gap-3 justify-center">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-primary)]/10 border border-[var(--brand-border)]">
-              <ServifyMark variant="icon" className="text-[var(--brand-primary)]" />
+              <ServifyLogo size="md" />
             </div>
             <div>
               <p className="text-[var(--brand-text)] font-semibold text-lg leading-tight">Servify</p>
@@ -351,7 +351,7 @@ export default function LoginPage() {
 
           {/* Powered by */}
           <div className="flex items-center justify-center gap-1.5 opacity-50 hover:opacity-80 transition-opacity">
-            <ServifyMark variant="inline" className="text-[var(--brand-accent)]" />
+            <ServifyLogo size="sm" />
             <span className="text-[10px] text-[var(--brand-muted)]">Powered by Servify</span>
           </div>
         </div>
