@@ -22,8 +22,10 @@ import { TenantInfoCard } from './tenant-info-card'
 import { CallDetailPanel } from './call-detail-panel'
 import { ConversionTimeline } from './conversion-timeline'
 import { WeeklyReportCard } from './weekly-report-card'
+import { TopServicesCard } from './top-services-card'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { DashboardMetrics, CallLog, Client } from '@/types/database'
+import type { ClientService } from '@/lib/types/domain'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ interface DashboardTabsProps {
   currency: string
   clientId: string
   tenant: Client
+  services: ClientService[]
 }
 
 type MainTab = 'overview' | 'inbound' | 'outbound'
@@ -155,6 +158,7 @@ function OverviewTab({
   currency,
   clientId,
   tenant,
+  services,
   onSelectCall,
 }: DashboardTabsProps & { onSelectCall: (log: CallLog) => void }) {
   return (
@@ -175,6 +179,11 @@ function OverviewTab({
         <ConversionTimeline callLogs={callLogs} />
         <WeeklyReportCard callLogs={callLogs} currency={currency} />
       </div>
+
+      {/* Top services (only shown when services are configured) */}
+      {services.length > 0 && (
+        <TopServicesCard callLogs={callLogs} services={services} currency={currency} />
+      )}
 
       <CallLogsTable
         initialData={callLogs}

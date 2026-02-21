@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
 import { getDashboardMetrics, getCallLogs } from '@/lib/dashboard/metrics'
+import { listActiveClientServices } from '@/lib/dashboard/services-query'
 import { DashboardLayout } from '@/components/dashboard/layout'
 import { DashboardTabs } from '@/components/dashboard/dashboard-tabs'
 import { TenantNotFound } from '@/components/shared/tenant-not-found'
@@ -21,11 +22,12 @@ export default async function DashboardPage() {
     )
   }
 
-  // Parallel data fetch — metrics and call logs load simultaneously
+  // Parallel data fetch — metrics, call logs, and active services load simultaneously
   // SECURITY: client_id sourced from trusted tenant config, not URL
-  const [metrics, { data: callLogs, count: totalCount }] = await Promise.all([
+  const [metrics, { data: callLogs, count: totalCount }, activeServices] = await Promise.all([
     getDashboardMetrics(tenant.id),
     getCallLogs(tenant.id, { limit: 100 }),
+    listActiveClientServices(tenant.id),
   ])
 
   const followUpCount = callLogs.filter((c) => c.human_followup_needed).length
@@ -61,6 +63,7 @@ export default async function DashboardPage() {
         currency={tenant.currency}
         clientId={tenant.id}
         tenant={tenant}
+        services={activeServices}
       />
     </DashboardLayout>
   )

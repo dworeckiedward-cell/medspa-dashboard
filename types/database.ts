@@ -146,6 +146,18 @@ export interface ServicesCatalog {
   is_active: boolean
   created_at: string
   updated_at: string
+
+  // ── Fields added in migration 007 (Services & Pricing Manager) ─────────────
+  /** Free-form category label (e.g. "Injectables", "Laser", "Skin Care") */
+  category: string | null
+  /** Single list price in currency minor units (cents). null = quote-based. */
+  price_cents: number | null
+  /** ISO 4217 currency code, lowercase (e.g. 'usd', 'pln'). */
+  currency: string
+  /** Typical session length in minutes. */
+  duration_min: number | null
+  /** Display sort position — lower = higher in list. */
+  sort_order: number
 }
 
 export interface KbVersion {

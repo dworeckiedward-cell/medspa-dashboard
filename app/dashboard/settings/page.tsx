@@ -1,7 +1,11 @@
 import { redirect } from 'next/navigation'
 import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
+import { listClientServices } from '@/lib/dashboard/services-query'
+import { getMockBillingSummary } from '@/lib/dashboard/billing'
 import { DashboardLayout } from '@/components/dashboard/layout'
 import { TenantNotFound } from '@/components/shared/tenant-not-found'
+import { ServicesPricingManager } from '@/components/dashboard/services-pricing-manager'
+import { BillingStatusCard } from '@/components/dashboard/billing-status-card'
 import {
   AppearanceSection,
   NotificationSection,
@@ -27,6 +31,12 @@ export default async function SettingsPage() {
   const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'yourdomain.com'
   const domain = tenant.custom_domain || `${tenant.subdomain || tenant.slug}.${appDomain}`
 
+  // Parallel data fetch for Settings sections
+  const [initialServices, billing] = await Promise.all([
+    listClientServices(tenant.id),
+    Promise.resolve(getMockBillingSummary(tenant.id)),
+  ])
+
   return (
     <DashboardLayout tenant={tenant} followUpCount={0} bookedNotificationCount={0} bookedNotifications={[]}>
       <div className="max-w-2xl mx-auto p-6 pb-16">
@@ -39,6 +49,31 @@ export default async function SettingsPage() {
         <div className="space-y-8">
           {/* Appearance */}
           <AppearanceSection />
+
+          {/* Services & Pricing */}
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--brand-text)]">Services & Pricing</h2>
+              <p className="text-xs text-[var(--brand-muted)] mt-0.5">
+                Define the services your practice offers. Prices are used for revenue attribution in the dashboard.
+              </p>
+            </div>
+            <ServicesPricingManager
+              initialServices={initialServices}
+              currency={tenant.currency}
+            />
+          </section>
+
+          {/* Billing */}
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--brand-text)]">Billing</h2>
+              <p className="text-xs text-[var(--brand-muted)] mt-0.5">
+                Your Servify subscription status and payment details.
+              </p>
+            </div>
+            <BillingStatusCard billing={billing} />
+          </section>
 
           {/* Notifications */}
           <NotificationSection />

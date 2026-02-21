@@ -229,6 +229,61 @@ export interface CrmDeliveryLog {
   createdAt: string
 }
 
+// ─── Services & Pricing ───────────────────────────────────────────────────────
+
+/** Friendly camelCase view of a ServicesCatalog row. */
+export interface ClientService {
+  id: string
+  tenantId: string
+  name: string
+  category: string | null
+  /** List price in minor units (e.g. cents). null = quote-based. */
+  priceCents: number | null
+  /** ISO 4217 currency code, lowercase. */
+  currency: string
+  /** Typical session length in minutes. */
+  durationMin: number | null
+  sortOrder: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// ─── Billing ──────────────────────────────────────────────────────────────────
+
+export type BillingStatus =
+  | 'active'
+  | 'trialing'
+  | 'past_due'
+  | 'canceled'
+  | 'incomplete'
+  | 'unpaid'
+
+/**
+ * Portable billing summary — maps to a Stripe subscription or a local billing table.
+ * All monetary amounts in currency minor units (cents).
+ */
+export interface BillingSummary {
+  tenantId: string
+  planName: string
+  status: BillingStatus
+  /** Recurring price in minor units (e.g. 29900 = $299.00). */
+  amountCents: number
+  /** ISO 4217 currency code, lowercase. */
+  currency: string
+  interval: 'month' | 'year'
+  /** ISO 8601 timestamp of the next charge / renewal. */
+  nextBillingAt: string | null
+  trialEndsAt?: string | null
+  cancelAt?: string | null
+  canceledAt?: string | null
+  paymentMethodBrand?: string | null   // e.g. 'visa', 'mastercard'
+  paymentMethodLast4?: string | null
+  customerPortalUrl?: string | null
+  invoicesUrl?: string | null
+  updatedAt?: string | null
+}
+
 // ─── Retell / provider-agnostic normalised call summary payload ───────────────
 
 export interface NormalisedCallSummary {
