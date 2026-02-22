@@ -35,6 +35,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getTenantBySlug } from '@/lib/tenant/get-tenant-config'
 import { guardDevRoute } from '@/lib/api-utils'
+import { safeCompare } from '@/lib/auth/timing-safe'
 import { deliverCrmEvent } from '@/lib/integrations/crm/delivery-service'
 import type { IntegrationProvider } from '@/lib/types/domain'
 import type {
@@ -53,7 +54,7 @@ function isAuthorised(req: NextRequest): boolean {
   const devKey = process.env.DEV_ACTION_KEY
   if (!devKey) return false // key not configured → always deny in production
 
-  return req.headers.get('x-dev-action-key') === devKey
+  return safeCompare(req.headers.get('x-dev-action-key'), devKey)
 }
 
 // ── Request schema ─────────────────────────────────────────────────────────────

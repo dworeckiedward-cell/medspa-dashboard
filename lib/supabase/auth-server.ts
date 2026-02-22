@@ -6,39 +6,12 @@ import type { Client } from '@/types/database'
 /**
  * Auth-aware Supabase client for Next.js 14 App Router.
  *
- * Uses @supabase/ssr to read the user session from cookies set by Supabase Auth.
+ * Uses @supabase/ssr to read the user session from cookies set by:
+ *   - createBrowserClient (lib/supabase/client.ts) — stores session in cookies
+ *   - middleware.ts — refreshes expired tokens before server components run
+ *
  * The session client (anon key + cookies) verifies the JWT; the service-role
  * client then queries user_tenants without requiring RLS on that table.
- *
- * ── Expected user_tenants schema (migration 003) ────────────────────────────
- *
- *   create table public.user_tenants (
- *     id          uuid primary key default gen_random_uuid(),
- *     user_id     uuid not null references auth.users(id) on delete cascade,
- *     client_id   uuid not null references public.clients(id) on delete cascade,
- *     role        text not null default 'viewer'
- *                   check (role in ('owner', 'admin', 'viewer')),
- *     created_at  timestamptz not null default now(),
- *     unique(user_id, client_id)
- *   );
- *
- * ── Lovable → Next.js auth handoff flow ─────────────────────────────────────
- *
- *   1. User logs in via Lovable (React + Vite) using Supabase magic link / OAuth.
- *   2. Supabase issues session cookies (sb-{projectRef}-auth-token, chunked).
- *   3. User navigates to the Next.js dashboard (same Supabase project = shared cookies).
- *   4. This module reads the cookies, verifies the JWT via supabase.auth.getUser(),
- *      then queries user_tenants to find ALL allowed tenants for this user.
- *   5. resolveTenantAccess() handles 0 / 1 / >1 tenant cases appropriately.
- *
- * ── To activate auth (checklist) ────────────────────────────────────────────
- *
- *   ✓  @supabase/ssr     — already installed (^0.5.0)
- *   □  Run migration     — supabase/migrations/003_user_tenants.sql
- *   □  Wire Lovable UI   — set NEXT_PUBLIC_SUPABASE_URL + ANON_KEY on the Lovable app
- *   □  Shared cookies    — ensure Lovable and this dashboard share the same domain
- *                         (e.g. Lovable on app.example.com, dashboard on *.example.com)
- *                         OR use Supabase's cross-domain auth via token in URL
  */
 
 // ── Session client (anon key + cookies — respects RLS) ──────────────────────
@@ -55,6 +28,7 @@ function createSupabaseSessionClient() {
         },
         // setAll is called when Supabase rotates the session token.
         // In Server Components cookies() is read-only — ignore the error.
+        // Token refresh is handled by middleware.ts instead.
         setAll(cookiesToSet: Array<{ name: string; value: string; options: Record<string, unknown> }>) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
@@ -105,7 +79,12 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
       error: sessionError,
     } = await sessionClient.auth.getUser()
 
-    if (sessionError || !user) return null
+    if (sessionError || !user) {
+      console.log('[auth] No session:', sessionError?.message ?? 'no user')
+      return null
+    }
+
+    console.log('[auth] Session found:', user.id, user.email)
 
     // 2. Fetch ALL tenants for this user via the service-role client.
     //    Service role bypasses RLS — safe because we already verified identity above.
@@ -118,10 +97,9 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
 
     if (membershipError) {
       if (membershipError.message?.includes('does not exist')) {
-        // user_tenants table not yet created — authenticated but no tenants
+        console.log('[auth] user_tenants table not found — returning 0 tenants')
         return { userId: user.id, email: user.email, tenants: [] }
       }
-      // Other DB error — fail safe (falls through to demo path)
       console.warn('[auth] user_tenants query error:', membershipError.message)
       return null
     }
@@ -131,16 +109,15 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
       .map((r) => r.clients as unknown as Client)
       .filter(Boolean)
 
+    console.log('[auth] Resolved:', tenants.length, 'tenant(s) for user', user.id)
+
     return {
       userId: user.id,
       email: user.email ?? null,
       tenants,
     }
   } catch (err) {
-    // Should not reach here under normal conditions
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('[auth] getAuthenticatedUser unexpected error:', err)
-    }
+    console.warn('[auth] getAuthenticatedUser unexpected error:', err)
     return null
   }
 }

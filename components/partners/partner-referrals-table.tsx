@@ -43,7 +43,7 @@ const STATUS_CONFIG: Record<ReferralStatus, { label: string; bg: string; text: s
 export function PartnerReferralsTable({ referrals }: PartnerReferralsTableProps) {
   if (referrals.length === 0) {
     return (
-      <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center">
         <p className="text-sm text-[var(--brand-muted)]">No referrals yet</p>
       </div>
     )

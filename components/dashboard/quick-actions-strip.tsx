@@ -70,7 +70,7 @@ export function QuickActionsStrip({ tenantSlug, failedDeliveries = 0 }: QuickAct
           <Link
             key={action.label}
             href={buildDashboardHref(action.href, tenantSlug)}
-            className="relative flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-[11px] font-medium text-[var(--brand-text)] hover:border-[var(--brand-text)]/20 hover:shadow-sm transition-all duration-150 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--brand-bg)]"
+            className="relative flex items-center gap-1.5 rounded-xl border border-[var(--brand-border)]/60 bg-[var(--brand-surface)] px-3 py-2 text-[11px] font-medium text-[var(--brand-text)] hover:border-[var(--brand-border)] hover:bg-[var(--brand-bg)] transition-all duration-150 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/30 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--brand-bg)]"
           >
             <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: action.color }} />
             {action.label}

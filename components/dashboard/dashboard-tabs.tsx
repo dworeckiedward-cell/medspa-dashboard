@@ -32,11 +32,14 @@ import { RecommendedActionsCard } from './recommended-actions-card'
 import { ServicePerformanceCard } from './service-performance-card'
 import { DataQualityCard } from './data-quality-card'
 import { SystemAlertsCard } from './system-alerts-card'
+import { WeeklyAiSummaryCard } from './weekly-ai-summary-card'
+import { useFrontDeskMode } from '@/lib/dashboard/front-desk-mode'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { DashboardMetrics, CallLog, Client } from '@/types/database'
 import type { ClientService } from '@/lib/types/domain'
 import type { DashboardException } from '@/lib/dashboard/exceptions'
 import type { RecommendedAction } from '@/lib/dashboard/recommended-actions'
+import { AiSystemStatusBanner } from './ai-system-status-banner'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -80,7 +83,7 @@ function TabBar<T extends string>({
   return (
     <div
       className={cn(
-        'flex gap-1 border-b border-[var(--brand-border)]',
+        'flex gap-0.5 border-b border-[var(--brand-border)]/50',
         size === 'sm' && 'mt-4',
       )}
       role="tablist"
@@ -197,80 +200,96 @@ function OverviewTab({
   exceptions,
   recommendedActions,
 }: DashboardTabsProps & { onSelectCall: (log: CallLog) => void }) {
+  const { isFrontDesk } = useFrontDeskMode()
+
   return (
     <div className="space-y-6 p-6 animate-fade-in">
-      {/* Onboarding wizard (dismissible, DB-backed with localStorage fallback) */}
-      <OnboardingWizard
-        tenantId={tenant.id}
-        tenantSlug={tenant.slug}
-        tenantName={tenant.name}
-        tenantLogoUrl={tenant.logo_url}
-        tenantBrandColor={tenant.brand_color}
-      />
-
-      {/* Next recommended action when setup is incomplete (shown after wizard is dismissed) */}
-      <NextActionCard tenantId={tenant.id} tenantSlug={tenant.slug} />
-
-      {/* Quick actions strip */}
-      <QuickActionsStrip
-        tenantSlug={tenant.slug}
-        failedDeliveries={failedDeliveries}
-      />
-
-      {/* Persistent system alerts — fetches from /api/alerts */}
-      <SystemAlertsCard />
+      {/* AI system status banner — shown when AI is not fully active */}
+      <AiSystemStatusBanner tenantSlug={tenant.slug} />
 
       {/* Operational alerts — surfaces exceptions that need attention */}
       {exceptions && exceptions.length > 0 && (
         <NeedsAttentionCard exceptions={exceptions} />
       )}
 
-      {/* AI-driven recommended actions */}
-      {recommendedActions && recommendedActions.length > 0 && (
-        <RecommendedActionsCard actions={recommendedActions} />
-      )}
+      {/* ── Simple-view items (always shown) ─────────────────────────── */}
 
       <KpiCards metrics={metrics} currency={currency} />
 
-      {/* System status snapshot */}
-      <SystemStatusCard
-        callLogs={callLogs}
-        integrationsCount={integrationsCount}
-        integrationsHealthy={integrationsHealthy}
-        billing={billing}
-      />
+      {/* Weekly AI performance digest */}
+      <WeeklyAiSummaryCard callLogs={callLogs} currency={currency} />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <RoiChart data={metrics.chartSeries} currency={currency} />
-        </div>
-        <div>
-          <TenantInfoCard tenant={tenant} />
-        </div>
-      </div>
+      {/* ── Advanced items (hidden in front-desk mode) ────────────────── */}
 
-      {/* Conversion funnel + weekly report */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ConversionTimeline callLogs={callLogs} />
-        <WeeklyReportCard callLogs={callLogs} currency={currency} />
-      </div>
+      {!isFrontDesk && (
+        <>
+          {/* Onboarding wizard (dismissible, DB-backed with localStorage fallback) */}
+          <OnboardingWizard
+            tenantId={tenant.id}
+            tenantSlug={tenant.slug}
+            tenantName={tenant.name}
+            tenantLogoUrl={tenant.logo_url}
+            tenantBrandColor={tenant.brand_color}
+          />
 
-      {/* Service performance insights (keyword-matched) */}
-      {services.length > 0 && (
-        <ServicePerformanceCard callLogs={callLogs} services={services} currency={currency} />
+          {/* Next recommended action when setup is incomplete (shown after wizard is dismissed) */}
+          <NextActionCard tenantId={tenant.id} tenantSlug={tenant.slug} />
+
+          {/* Quick actions strip */}
+          <QuickActionsStrip
+            tenantSlug={tenant.slug}
+            failedDeliveries={failedDeliveries}
+          />
+
+          {/* Persistent system alerts — fetches from /api/alerts */}
+          <SystemAlertsCard />
+
+          {/* AI-driven recommended actions */}
+          {recommendedActions && recommendedActions.length > 0 && (
+            <RecommendedActionsCard actions={recommendedActions} />
+          )}
+
+          {/* System status snapshot */}
+          <SystemStatusCard
+            callLogs={callLogs}
+            integrationsCount={integrationsCount}
+            integrationsHealthy={integrationsHealthy}
+            billing={billing}
+          />
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <div className="xl:col-span-2">
+              <RoiChart data={metrics.chartSeries} currency={currency} tenantSlug={tenant.slug} />
+            </div>
+            <div>
+              <TenantInfoCard tenant={tenant} />
+            </div>
+          </div>
+
+          {/* Conversion funnel + weekly report */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <ConversionTimeline callLogs={callLogs} />
+            <WeeklyReportCard callLogs={callLogs} currency={currency} />
+          </div>
+
+          {/* Service performance insights (keyword-matched) */}
+          {services.length > 0 && (
+            <ServicePerformanceCard callLogs={callLogs} services={services} currency={currency} />
+          )}
+
+          {/* Top services (only shown when services are configured) */}
+          {services.length > 0 && (
+            <TopServicesCard callLogs={callLogs} services={services} currency={currency} />
+          )}
+
+          {/* Data Quality / Trust Center */}
+          <DataQualityCard
+            callLogs={callLogs}
+            services={services}
+            hasIntegrations={(integrationsCount ?? 0) > 0}
+          />
+        </>
       )}
-
-      {/* Top services (only shown when services are configured) */}
-      {services.length > 0 && (
-        <TopServicesCard callLogs={callLogs} services={services} currency={currency} />
-      )}
-
-      {/* Data Quality / Trust Center */}
-      <DataQualityCard
-        callLogs={callLogs}
-        services={services}
-        hasIntegrations={(integrationsCount ?? 0) > 0}
-      />
 
       <CallLogsTable
         initialData={callLogs}
@@ -344,8 +363,8 @@ function InboundTab({
   ]
 
   return (
-    <div className="space-y-6 p-6 animate-fade-in">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 animate-fade-in">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {kpis.map((kpi) => (
           <MiniKpiCard key={kpi.label} {...kpi} />
         ))}
@@ -461,7 +480,7 @@ function SpeedToLeadTab({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         {kpis.map((kpi) => (
           <MiniKpiCard key={kpi.label} {...kpi} />
         ))}
@@ -510,7 +529,7 @@ export function DashboardTabs(props: DashboardTabsProps) {
 
       <div className="flex flex-col min-h-0">
         {/* Main tab navigation */}
-        <div className="px-6 bg-[var(--brand-surface)] border-b border-[var(--brand-border)] transition-colors duration-200">
+        <div className="px-4 sm:px-6 bg-[var(--brand-surface)] border-b border-[var(--brand-border)] transition-colors duration-200">
           <TabBar tabs={mainTabs} active={tab} onSelect={setTab} />
         </div>
 

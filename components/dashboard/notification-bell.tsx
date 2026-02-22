@@ -70,7 +70,7 @@ export function NotificationBell({ count, notifications, tenantSlug }: Notificat
 
       {open && (
         <div
-          className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-lg shadow-black/8 overflow-hidden"
+          className="absolute right-0 top-10 z-50 w-80 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-lg shadow-black/8 overflow-hidden"
           role="dialog"
           aria-label="Booked appointments"
         >

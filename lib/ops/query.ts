@@ -33,7 +33,7 @@ export interface ClientOverview {
 
 // ── Queries ──────────────────────────────────────────────────────────────────
 
-/** Fetch ALL active clients ordered by creation date */
+/** Fetch active clients ordered by creation date (capped at 200) */
 export async function listAllClients(): Promise<Client[]> {
   const supabase = createSupabaseServerClient()
   const { data, error } = await supabase
@@ -41,6 +41,7 @@ export async function listAllClients(): Promise<Client[]> {
     .select('*')
     .eq('is_active', true)
     .order('created_at', { ascending: false })
+    .limit(200)
 
   if (error) {
     console.error('[ops] listAllClients error:', error.message)

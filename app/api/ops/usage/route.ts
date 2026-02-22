@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   const minPercent = parseInt(url.searchParams.get('minPercent') ?? '0', 10)
-  const limit = parseInt(url.searchParams.get('limit') ?? '50', 10)
+  const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '50', 10), 200)
 
   const overviews = await getAllTenantUsageOverviews()
 

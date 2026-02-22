@@ -47,7 +47,7 @@ export default async function LeadsPage() {
       bookedNotificationCount={bookedNotifications.length}
       bookedNotifications={bookedNotifications}
     >
-      <div className="p-6 space-y-5 animate-fade-in">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 animate-fade-in">
         <LeadsTable contacts={contacts} />
       </div>
     </DashboardLayout>

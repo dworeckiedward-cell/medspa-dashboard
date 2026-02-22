@@ -41,7 +41,7 @@ export function KpiCards({ metrics, currency = 'USD' }: KpiCardsProps) {
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
       {cards.map((card) => {
         const Icon = card.icon
         return (
@@ -66,7 +66,7 @@ export function KpiCards({ metrics, currency = 'USD' }: KpiCardsProps) {
                   <p className="text-xs text-[var(--brand-muted)] mt-1.5">{card.sub}</p>
                 </div>
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
                   style={{ background: `${card.color}22`, color: card.color }}
                 >
                   <Icon className="h-5 w-5" />

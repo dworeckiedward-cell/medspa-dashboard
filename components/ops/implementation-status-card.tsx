@@ -82,7 +82,7 @@ export function ImplementationStatusCard({ overview }: ImplementationStatusCardP
   const percent = Math.round((doneCount / items.length) * 100)
 
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 space-y-3">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-[var(--brand-text)]">

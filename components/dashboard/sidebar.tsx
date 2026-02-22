@@ -4,11 +4,12 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Phone, Settings, Menu, X, Sparkles, Users, Bell, Plug, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, Phone, Settings, Menu, X, Sparkles, Users, Bell, Plug, BarChart3, MessageSquare, HelpCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { buildDashboardHref } from '@/lib/dashboard/link'
 import { useAccent } from '@/lib/dashboard/accent'
 import { useLanguage } from '@/lib/dashboard/use-language'
+import { SidebarAccountMenu } from './sidebar-account-menu'
 import type { Client } from '@/types/database'
 import type { TranslationDict } from '@/lib/dashboard/i18n'
 
@@ -75,6 +76,18 @@ const NAV_ITEMS: NavItemDef[] = [
     exact: true,
   },
   {
+    labelFn: (t) => t.nav.conversations,
+    href: '/dashboard/conversations',
+    icon: MessageSquare,
+    exact: true,
+  },
+  {
+    labelFn: (t) => t.nav.support,
+    href: '/dashboard/support',
+    icon: HelpCircle,
+    exact: true,
+  },
+  {
     labelFn: (t) => t.nav.integrations,
     href: '/dashboard/integrations',
     icon: Plug,
@@ -113,12 +126,12 @@ function SidebarNav({ tenant, pathname, t, onNavClick }: SidebarNavProps) {
   return (
     <div className="flex h-full flex-col">
       {/* Logo + brand */}
-      <div className="flex items-center gap-3 px-5 py-5 border-b border-[var(--brand-border)]">
+      <div className="flex items-center gap-3 px-5 py-5 border-b border-[var(--brand-border)]/60">
         <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white font-bold text-sm shadow-sm"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white font-semibold text-sm"
           style={{
             background: 'var(--brand-primary)',
-            boxShadow: '0 0 0 3px color-mix(in srgb, var(--brand-primary) 18%, transparent)',
+            boxShadow: '0 0 0 2px color-mix(in srgb, var(--brand-primary) 12%, transparent)',
           }}
         >
           {tenant.logo_url ? (
@@ -144,7 +157,7 @@ function SidebarNav({ tenant, pathname, t, onNavClick }: SidebarNavProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Main navigation">
+      <nav className="flex-1 space-y-0.5 px-3 py-4" aria-label="Main navigation">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon
           const label = item.labelFn(t)
@@ -154,7 +167,7 @@ function SidebarNav({ tenant, pathname, t, onNavClick }: SidebarNavProps) {
             <div key={item.href}>
               {/* Separator before grouped utility items (e.g. Settings) */}
               {item.separator && (
-                <div className="mx-2 my-2 border-t border-[var(--brand-border)]" />
+                <div className="mx-2 my-3 border-t border-[var(--brand-border)]/50" />
               )}
 
               <Link
@@ -162,13 +175,12 @@ function SidebarNav({ tenant, pathname, t, onNavClick }: SidebarNavProps) {
                 onClick={onNavClick}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium',
+                  'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium',
                   'transition-all duration-150 motion-reduce:transition-none',
                   // Non-active hover/default
                   !isActive && [
                     'text-[var(--brand-muted)]',
-                    'hover:bg-[var(--brand-primary)]/[0.06] hover:text-[var(--brand-text)]',
-                    'hover:translate-x-px',
+                    'hover:bg-[var(--brand-bg)] hover:text-[var(--brand-text)]',
                   ],
                   // Active — styled via inline style below (user-accent CSS var)
                   isActive && 'font-semibold',
@@ -200,11 +212,12 @@ function SidebarNav({ tenant, pathname, t, onNavClick }: SidebarNavProps) {
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-[var(--brand-border)] px-4 py-3">
-        <div className="flex items-center gap-2 rounded-lg px-2 py-1.5 opacity-50 hover:opacity-90 transition-opacity duration-200">
-          <Sparkles className="h-3.5 w-3.5 text-[var(--brand-accent)]" aria-hidden="true" />
-          <span className="text-[11px] text-[var(--brand-muted)]">{t.common.poweredByServify}</span>
+      {/* Footer — account menu + powered by */}
+      <div className="border-t border-[var(--brand-border)]/50 px-3 py-3 space-y-2">
+        <SidebarAccountMenu tenant={tenant} />
+        <div className="flex items-center gap-2 rounded-lg px-2.5 py-1 opacity-30 hover:opacity-60 transition-opacity duration-200">
+          <Sparkles className="h-2.5 w-2.5 text-[var(--brand-accent)]" aria-hidden="true" />
+          <span className="text-[9px] text-[var(--brand-muted)]">{t.common.poweredByServify}</span>
         </div>
       </div>
     </div>
@@ -234,7 +247,7 @@ export function Sidebar({ tenant }: SidebarProps) {
     <>
       {/* Desktop sidebar */}
       <aside
-        className="hidden lg:flex w-[248px] shrink-0 flex-col border-r border-[var(--brand-border)] bg-[var(--brand-surface)] transition-colors duration-200"
+        className="hidden lg:flex w-[248px] shrink-0 flex-col border-r border-[var(--brand-border)]/60 bg-[var(--brand-surface)] transition-colors duration-200"
         aria-label="Sidebar"
       >
         <SidebarNav {...navProps} />
@@ -261,12 +274,12 @@ export function Sidebar({ tenant }: SidebarProps) {
         <>
           {/* Backdrop */}
           <div
-            className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            className="lg:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
           <aside
-            className="lg:hidden fixed left-0 top-0 z-50 h-full w-[248px] flex flex-col border-r border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl sidebar-slide-in"
+            className="lg:hidden fixed left-0 top-0 z-50 h-full w-[248px] flex flex-col border-r border-[var(--brand-border)]/60 bg-[var(--brand-surface)] shadow-xl sidebar-slide-in"
             aria-label="Mobile sidebar"
           >
             <SidebarNav {...navProps} />

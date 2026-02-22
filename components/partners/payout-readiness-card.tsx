@@ -19,7 +19,7 @@ export function PayoutReadinessCard({ payout, partner }: PayoutReadinessCardProp
   const isPayoutReady = hasPayoutMethod && hasApprovedFunds
 
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 space-y-4">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-[var(--brand-text)]">
           Payout Summary

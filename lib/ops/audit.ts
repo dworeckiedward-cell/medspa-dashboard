@@ -29,6 +29,16 @@ export type AuditAction =
   | 'partners_console_viewed'
   | 'partner_detail_viewed'
   | 'alerts_console_viewed'
+  | 'support_requests_viewed'
+  | 'support_request_detail_viewed'
+  | 'ai_control_viewed'
+  | 'ai_control_updated'
+  | 'cac_updated'
+  | 'cac_cleared'
+  | 'financials_console_viewed'
+  | 'client_financial_detail_viewed'
+  | 'client_financial_profile_updated'
+  | 'client_payment_logged'
 
 export interface AuditEntry {
   operatorId: string

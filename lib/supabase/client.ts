@@ -1,15 +1,18 @@
 'use client'
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Singleton browser client — safe to call multiple times
 let _client: SupabaseClient | null = null
 
 /**
- * Browser-side Supabase client (anon key only — subject to RLS).
- * Call this in Client Components.
+ * Browser-side Supabase client using @supabase/ssr.
  *
- * TODO: Switch to createBrowserClient from @supabase/ssr when adding auth.
+ * Uses createBrowserClient which stores the auth session in cookies
+ * (via document.cookie), making it readable by the server-side
+ * createServerClient in auth-server.ts. This is critical for
+ * server components to detect authenticated users.
  */
 export function getSupabaseBrowserClient(): SupabaseClient {
   if (_client) return _client
@@ -21,6 +24,6 @@ export function getSupabaseBrowserClient(): SupabaseClient {
     throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
   }
 
-  _client = createClient(url, key)
+  _client = createBrowserClient(url, key)
   return _client
 }

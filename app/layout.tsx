@@ -78,6 +78,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     `el.style.setProperty('--user-accent-ring','rgba('+r+','+g+','+b+',0.4)');` +
     `}catch(e){}})();`
 
+  // Blocking custom theme script: applies user's custom colors before paint.
+  const customThemeScript =
+    `(function(){try{` +
+    `var raw=localStorage.getItem('servify:theme:custom')||localStorage.getItem('servify:theme:custom:${tenantSlug}');` +
+    `if(!raw)return;var t=JSON.parse(raw);if(!t.enabled)return;` +
+    `var el=document.documentElement,v=/^#[0-9A-Fa-f]{6}$/;` +
+    `if(v.test(t.background))el.style.setProperty('--brand-bg',t.background);` +
+    `if(v.test(t.surface))el.style.setProperty('--brand-surface',t.surface);` +
+    `if(v.test(t.text))el.style.setProperty('--brand-text',t.text);` +
+    `if(v.test(t.accent))el.style.setProperty('--brand-primary',t.accent);` +
+    `}catch(e){}})();`
+
   return (
     // suppressHydrationWarning: the blocking script above may add 'dark' to <html>
     // before React hydrates — React would otherwise warn about the class mismatch.
@@ -89,6 +101,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         {/* Apply stored accent color before first paint — no accent flash */}
         <script dangerouslySetInnerHTML={{ __html: accentScript }} />
+        {/* Apply custom theme colors before first paint — no flash */}
+        <script dangerouslySetInnerHTML={{ __html: customThemeScript }} />
       </head>
       <body
         className={`${inter.variable} font-sans bg-[var(--brand-bg)] text-[var(--brand-text)] antialiased`}

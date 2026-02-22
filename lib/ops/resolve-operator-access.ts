@@ -7,18 +7,16 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
  * Resolution strategy (fail-closed):
  *
  *   1. Verify Supabase Auth session (must be authenticated)
- *   2. Check if user email is in the SERVIFY_OPERATOR_EMAILS allowlist (env var)
- *   3. Fallback: check if user has 'owner' or 'admin' role on ANY tenant
- *      (temporary dev guard — in production, use explicit operator table)
+ *   2. Check `ops_users` table by user_id (primary lookup)
+ *   3. Fallback: check `ops_users` by normalized email
+ *   4. Fallback: check SERVIFY_OPERATOR_EMAILS env allowlist
+ *   5. Denied
  *
- * If neither check passes, access is denied.
+ * Schema resilience:
+ *   - If `is_active` column exists, requires is_active = true
+ *   - If no `is_active` column, treats existence of row as access granted
  *
- * ── Production hardening TODO ──────────────────────────────────────────────
- *
- *   □  Create a dedicated `operators` table (user_id, role, created_at)
- *   □  Replace email allowlist with DB-backed RBAC
- *   □  Add rate limiting on ops routes
- *   □  Wire audit logging to persistent store
+ * Dev mode bypass available for local development only (guarded by multiple env checks).
  */
 
 export interface OperatorAccessResult {
@@ -26,7 +24,7 @@ export interface OperatorAccessResult {
   userId: string | null
   email: string | null
   /** How operator access was granted */
-  grantedVia: 'allowlist' | 'tenant_role' | 'dev_mode' | null
+  grantedVia: 'ops_users_id' | 'ops_users_email' | 'allowlist' | 'dev_mode' | null
   /** Reason for denial (when authorized=false) */
   reason?: string
 }
@@ -43,6 +41,18 @@ function getOperatorAllowlist(): string[] {
     .filter(Boolean)
 }
 
+/**
+ * Check if an ops_users row grants active access.
+ * Resilient to schema variations: if `is_active` column exists, it must be true.
+ * If the column doesn't exist (undefined), row existence = access.
+ */
+function isRowActive(row: Record<string, unknown>): boolean {
+  if ('is_active' in row && row.is_active !== undefined && row.is_active !== null) {
+    return row.is_active === true
+  }
+  return true // no is_active column → existence = access
+}
+
 export async function resolveOperatorAccess(): Promise<OperatorAccessResult> {
   const denied = (reason: string): OperatorAccessResult => ({
     authorized: false,
@@ -52,10 +62,14 @@ export async function resolveOperatorAccess(): Promise<OperatorAccessResult> {
     reason,
   })
 
-  // ── Dev mode bypass (non-production only) ──────────────────────────────
-  // In development, if no auth is configured, allow access for local testing.
-  // This NEVER activates in production.
-  if (process.env.NODE_ENV !== 'production' && process.env.OPS_DEV_BYPASS === 'true') {
+  // ── Dev mode bypass (local development ONLY) ────────────────────────────
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.OPS_DEV_BYPASS === 'true' &&
+    !process.env.VERCEL &&
+    !process.env.RAILWAY_ENVIRONMENT
+  ) {
+    console.warn('[ops-access] Dev bypass active — NOT safe for production')
     return {
       authorized: true,
       userId: 'dev-operator',
@@ -68,35 +82,93 @@ export async function resolveOperatorAccess(): Promise<OperatorAccessResult> {
   const authResult = await getAuthenticatedUser()
 
   if (!authResult) {
+    console.log('[ops-access] DENIED — no authenticated session')
     return denied('Not authenticated — no valid Supabase session')
   }
 
   const { userId, email } = authResult
+  const normalizedEmail = email?.trim().toLowerCase() ?? null
 
-  // ── 2. Check email allowlist ───────────────────────────────────────────
-  const allowlist = getOperatorAllowlist()
-  if (email && allowlist.length > 0 && allowlist.includes(email.toLowerCase())) {
-    return { authorized: true, userId, email: email ?? null, grantedVia: 'allowlist' }
-  }
+  console.log('[ops-access] Checking access for:', userId, normalizedEmail)
 
-  // ── 3. Fallback: check for admin/owner role on any tenant ──────────────
-  // This is a temporary dev guard. In production, use a dedicated operators table.
+  // ── 2. Check ops_users table by user_id (primary) ─────────────────────
+  const supabase = createSupabaseServerClient()
+
+  let opsRowByUserId = false
+  let opsRowByEmail = false
+
   try {
-    const supabase = createSupabaseServerClient()
-    const { data: roles } = await supabase
-      .from('user_tenants')
-      .select('role')
+    // Use select('*') for schema resilience — works regardless of is_active column
+    const { data: byId, error: byIdError } = await supabase
+      .from('ops_users')
+      .select('*')
       .eq('user_id', userId)
-      .in('role', ['owner', 'admin'])
       .limit(1)
 
-    if (roles && roles.length > 0) {
-      return { authorized: true, userId, email: email ?? null, grantedVia: 'tenant_role' }
+    if (byIdError) {
+      console.warn('[ops-access] ops_users query error (by user_id):', byIdError.message)
     }
-  } catch {
-    // user_tenants table may not exist yet — continue to denial
+
+    const activeById = byId?.find((row) => isRowActive(row as Record<string, unknown>))
+    opsRowByUserId = !!activeById
+
+    if (opsRowByUserId) {
+      console.log('[ops-access] GRANTED via ops_users (user_id)')
+      return {
+        authorized: true,
+        userId,
+        email: normalizedEmail,
+        grantedVia: 'ops_users_id',
+      }
+    }
+
+    // ── 3. Fallback: check ops_users by normalized email ──────────────────
+    if (normalizedEmail) {
+      const { data: byEmail, error: byEmailError } = await supabase
+        .from('ops_users')
+        .select('*')
+        .ilike('email', normalizedEmail)
+        .limit(1)
+
+      if (byEmailError) {
+        console.warn('[ops-access] ops_users query error (by email):', byEmailError.message)
+      }
+
+      const activeByEmail = byEmail?.find((row) => isRowActive(row as Record<string, unknown>))
+      opsRowByEmail = !!activeByEmail
+
+      if (opsRowByEmail) {
+        console.log('[ops-access] GRANTED via ops_users (email)')
+        return {
+          authorized: true,
+          userId,
+          email: normalizedEmail,
+          grantedVia: 'ops_users_email',
+        }
+      }
+    }
+  } catch (err) {
+    // ops_users table may not exist yet — fall through to allowlist
+    console.warn('[ops-access] ops_users query error (table may not exist):', err)
   }
 
-  // ── 4. Denied ──────────────────────────────────────────────────────────
-  return denied('User is not a Servify operator (not in allowlist, no admin role)')
+  // ── 4. Fallback: check email allowlist (env var) ──────────────────────
+  const allowlist = getOperatorAllowlist()
+  if (normalizedEmail && allowlist.length > 0 && allowlist.includes(normalizedEmail)) {
+    console.log('[ops-access] GRANTED via email allowlist')
+    return { authorized: true, userId, email: normalizedEmail, grantedVia: 'allowlist' }
+  }
+
+  // ── 5. Denied ─────────────────────────────────────────────────────────
+  console.log('[ops-access] DENIED', {
+    userId,
+    email: normalizedEmail,
+    opsRowByUserId,
+    opsRowByEmail,
+    allowlistLength: allowlist.length,
+  })
+
+  return denied(
+    'User is not a Servify operator (not in ops_users table, not in email allowlist)',
+  )
 }

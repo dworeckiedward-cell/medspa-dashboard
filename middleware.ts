@@ -1,28 +1,24 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { extractTenantSlugFromRequest } from '@/lib/tenant/resolve-tenant'
 
 /**
  * Next.js Edge Middleware — runs on every request before page rendering.
  *
  * Responsibilities:
- *  1. Resolve tenant slug from hostname/query/header
- *  2. Inject x-tenant-slug header for consumption by server components
- *  3. Pass through cleanly if no tenant found (pages handle the empty state)
+ *  1. Refresh Supabase auth tokens (critical for server-side auth)
+ *  2. Resolve tenant slug from hostname/query/header
+ *  3. Inject x-tenant-slug request header for server components
  *
- * Dev convenience:
- *  - luxe.lvh.me:3000     → slug = "luxe"    (set NEXT_PUBLIC_APP_DOMAIN=lvh.me)
- *  - miami.lvh.me:3000    → slug = "miami"
- *  - localhost:3000?tenant=luxe               (query param fallback)
- *  - curl -H "x-tenant-slug: luxe" ...       (header fallback)
- *
- * NOTE: Keep this function lightweight — no DB calls in Edge middleware.
- * Full tenant config (branding, integrations) is fetched in the Root Layout.
+ * The Supabase token refresh MUST happen here because Server Components
+ * cannot write cookies. Without this, expired JWTs cause
+ * getAuthenticatedUser() to return null even for logged-in users.
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip static assets and _next internals entirely
+  // Skip static assets and _next internals
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
@@ -31,6 +27,37 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // ── 1. Supabase auth token refresh ──────────────────────────────────────
+  // Track any cookies Supabase refreshes so we can forward them to the browser.
+  const refreshedCookies: Array<{ name: string; value: string; options: Record<string, unknown> }> = []
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (supabaseUrl && supabaseAnonKey) {
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet: Array<{ name: string; value: string; options: Record<string, unknown> }>) {
+          // Set refreshed tokens on the request (for downstream server components)
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value)
+          })
+          // Track for setting on the response (for the browser)
+          refreshedCookies.length = 0
+          refreshedCookies.push(...cookiesToSet)
+        },
+      },
+    })
+
+    // This refreshes the session if the JWT is expired.
+    // The refreshed tokens are written to cookies via setAll above.
+    await supabase.auth.getUser()
+  }
+
+  // ── 2. Tenant slug resolution ──────────────────────────────────────────
   const appDomain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'yourdomain.com'
 
   const resolved = extractTenantSlugFromRequest(
@@ -40,25 +67,32 @@ export function middleware(request: NextRequest) {
     appDomain,
   )
 
-  // Build new request headers with tenant context
+  // ── 3. Build response with custom request headers ──────────────────────
+  // Read headers AFTER Supabase modified request.cookies (which updates
+  // the Cookie header internally), so downstream gets both auth + tenant.
   const requestHeaders = new Headers(request.headers)
 
   if (resolved) {
     requestHeaders.set('x-tenant-slug', resolved.slug)
     requestHeaders.set('x-tenant-source', resolved.source)
   } else {
-    // Clear any stale values — pages handle missing tenant gracefully
     requestHeaders.delete('x-tenant-slug')
     requestHeaders.delete('x-tenant-source')
   }
 
-  return NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: requestHeaders },
   })
+
+  // Forward refreshed auth cookies to the browser
+  for (const { name, value, options } of refreshedCookies) {
+    response.cookies.set(name, value, options)
+  }
+
+  return response
 }
 
 export const config = {
-  // Match all routes except static files already handled above
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],

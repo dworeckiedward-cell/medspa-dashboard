@@ -30,7 +30,7 @@ export function UsageAllowanceCard({ snapshot, periodEndAt }: UsageAllowanceCard
   const statusConfig = getUsageStatusConfig(overallStatus)
 
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 space-y-4">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normaliseCallSummary, validateNormalisedSummary } from '@/lib/integrations/retell/normalize-call-summary'
+import { safeCompare } from '@/lib/auth/timing-safe'
+import { rateLimit, webhookLimiter } from '@/lib/api/rate-limit'
 
 /**
  * POST /api/webhooks/retell/call-summary
@@ -22,6 +24,10 @@ import { normaliseCallSummary, validateNormalisedSummary } from '@/lib/integrati
  */
 
 export async function POST(request: NextRequest) {
+  // ── Rate limit ──────────────────────────────────────────────────────────────
+  const limited = rateLimit(request, webhookLimiter)
+  if (limited) return limited
+
   // ── Authentication ──────────────────────────────────────────────────────────
   const secret =
     request.headers.get('x-webhook-secret') ??
@@ -34,7 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
   }
 
-  if (!secret || secret !== expectedSecret) {
+  if (!secret || !safeCompare(secret, expectedSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

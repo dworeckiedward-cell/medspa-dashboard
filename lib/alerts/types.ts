@@ -24,6 +24,7 @@ export type AlertSource =
   | 'calls'
   | 'summaries_pipeline'
   | 'usage_allowance'
+  | 'chat'
   | 'manual'
 
 // ── Severity ─────────────────────────────────────────────────────────────────
@@ -54,6 +55,8 @@ export type AlertRuleKey =
   | 'all_integrations_down'
   | 'no_bookings_from_calls'
   | 'follow_up_backlog'
+  | 'chat_ingestion_stale'
+  | 'chat_unread_backlog'
 
 // ── Core alert entity ────────────────────────────────────────────────────────
 

@@ -70,8 +70,15 @@ export function apiInternalError(message = 'Internal server error') {
  * Use this to gate development-only endpoints.
  */
 export function isDevRouteEnabled(): boolean {
-  if (process.env.NODE_ENV !== 'production') return true
-  return process.env.ENABLE_DEV_ROUTES === 'true'
+  // In production or on deployment platforms, require explicit opt-in
+  if (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL ||
+    process.env.RAILWAY_ENVIRONMENT
+  ) {
+    return process.env.ENABLE_DEV_ROUTES === 'true'
+  }
+  return true // local dev
 }
 
 /**

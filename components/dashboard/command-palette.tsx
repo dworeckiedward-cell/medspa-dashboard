@@ -17,6 +17,12 @@ import {
   Settings,
   Search,
   ArrowRight,
+  Users,
+  Phone,
+  Bell,
+  MessageSquare,
+  HelpCircle,
+  BarChart3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Client } from '@/types/database'
@@ -98,40 +104,72 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Overview',
       description: 'Dashboard home — KPIs, chart, call logs',
       icon: LayoutDashboard,
-      action: () => router.push(`/dashboard`),
-      keywords: ['home', 'main', 'overview', 'kpi'],
+      action: () => router.push('/dashboard'),
+      keywords: ['home', 'main', 'overview', 'kpi', 'dashboard'],
     },
     {
-      id: 'inbound',
-      label: 'Inbound Calls',
-      description: 'Leads and inbound call analytics',
-      icon: PhoneIncoming,
-      action: () => router.push(`/dashboard`),
-      keywords: ['inbound', 'incoming', 'lead'],
+      id: 'leads',
+      label: 'Leads',
+      description: 'Lead management and pipeline',
+      icon: Users,
+      action: () => router.push('/dashboard/leads'),
+      keywords: ['leads', 'pipeline', 'contacts', 'prospects'],
     },
     {
-      id: 'outbound',
-      label: 'Outbound / Speed-to-Lead',
-      description: 'Outbound calls and callback queue',
-      icon: PhoneOutgoing,
-      action: () => router.push(`/dashboard`),
-      keywords: ['outbound', 'callback', 'speed', 'lead'],
+      id: 'call-logs',
+      label: 'Call Logs',
+      description: 'View and search all call records',
+      icon: Phone,
+      action: () => router.push('/dashboard/call-logs'),
+      keywords: ['calls', 'logs', 'records', 'phone', 'history'],
+    },
+    {
+      id: 'follow-up',
+      label: 'Follow-up',
+      description: 'Calls needing human follow-up',
+      icon: Bell,
+      action: () => router.push('/dashboard/follow-up'),
+      keywords: ['follow', 'callback', 'pending', 'todo', 'queue'],
+    },
+    {
+      id: 'conversations',
+      label: 'Conversations',
+      description: 'Chat and messaging threads',
+      icon: MessageSquare,
+      action: () => router.push('/dashboard/conversations'),
+      keywords: ['chat', 'messages', 'conversations', 'sms', 'text'],
+    },
+    {
+      id: 'support',
+      label: 'Support',
+      description: 'Help requests and support tickets',
+      icon: HelpCircle,
+      action: () => router.push('/dashboard/support'),
+      keywords: ['support', 'help', 'tickets', 'assistance'],
     },
     {
       id: 'integrations',
       label: 'Integrations',
       description: 'CRM webhooks and delivery logs',
       icon: Plug,
-      action: () => router.push(`/dashboard/integrations`),
+      action: () => router.push('/dashboard/integrations'),
       keywords: ['crm', 'webhook', 'integration', 'hubspot', 'ghl'],
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      description: 'Analytics, ROI, and performance reports',
+      icon: BarChart3,
+      action: () => router.push('/dashboard/reports'),
+      keywords: ['reports', 'analytics', 'roi', 'performance', 'metrics'],
     },
     {
       id: 'settings',
       label: 'Settings',
-      description: 'Tenant configuration',
+      description: 'Billing, branding, AI system, and workspace configuration',
       icon: Settings,
-      action: () => router.push(`/dashboard/settings`),
-      keywords: ['settings', 'config', 'tenant', slug],
+      action: () => router.push('/dashboard/settings'),
+      keywords: ['settings', 'config', 'tenant', 'billing', 'branding', slug],
     },
   ], [router, slug])
 
@@ -218,7 +256,7 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       />
 
       {/* Panel */}
-      <div className="relative w-full max-w-lg rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl animate-in fade-in slide-in-from-top-4 duration-200">
+      <div className="relative w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl animate-in fade-in slide-in-from-top-4 duration-200">
         {/* Search input */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--brand-border)]">
           <Search className="h-4 w-4 shrink-0 text-[var(--brand-muted)]" />

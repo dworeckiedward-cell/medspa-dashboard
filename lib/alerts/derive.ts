@@ -19,6 +19,7 @@ import type {
 import type { CallLog } from '@/types/database'
 import type { ClientIntegration, CrmDeliveryLog } from '@/lib/types/domain'
 import type { UsageSummary } from '@/lib/billing/types'
+import type { ConversationsKpiSummary } from '@/lib/chat/types'
 
 // ── Input type ───────────────────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ export interface AlertDerivationInput {
   integrations: ClientIntegration[]
   usageSummary: UsageSummary | null
   servicesCount: number
+  chatKpi: ConversationsKpiSummary | null
+  lastChatActivityAt: string | null
 }
 
 // ── Alert candidate (pre-persistence) ────────────────────────────────────────
@@ -60,6 +63,7 @@ export function deriveAlertCandidates(input: AlertDerivationInput): AlertCandida
   deriveCallAlerts(input, candidates)
   derivePipelineAlerts(input, candidates)
   deriveUsageAlerts(input, candidates)
+  deriveChatAlerts(input, candidates)
 
   // Sort: critical → warning → info
   const order: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 }
@@ -412,5 +416,70 @@ function deriveUsageAlerts(
         fingerprint: `${clientId}:usage_80_percent:${allowance.metricType}`,
       })
     }
+  }
+}
+
+// ── Chat alerts ─────────────────────────────────────────────────────────────
+
+function deriveChatAlerts(
+  { clientId, chatKpi, lastChatActivityAt }: AlertDerivationInput,
+  out: AlertCandidate[],
+): void {
+  // Only derive chat alerts when we have real data
+  if (!chatKpi || chatKpi.totalConversations === 0) return
+
+  const now = Date.now()
+
+  // Chat ingestion stale — no new activity for N hours (only if tenant has chat history)
+  if (lastChatActivityAt) {
+    const hoursSinceLast = (now - Date.parse(lastChatActivityAt)) / (60 * 60 * 1000)
+
+    if (hoursSinceLast >= ALERT_THRESHOLDS.chatIngestionStaleHours) {
+      out.push({
+        clientId,
+        ruleKey: 'chat_ingestion_stale',
+        source: 'chat',
+        severity: 'warning',
+        confidence: 'derived',
+        title: 'Chat ingestion stale',
+        description: `No new chat events received in ${Math.round(hoursSinceLast)}+ hours`,
+        recommendedAction: 'Check chatbot webhook connectivity and n8n/ManyChat workflows',
+        evidence: {
+          hoursSinceLast: Math.round(hoursSinceLast),
+          lastActivityAt: lastChatActivityAt,
+        },
+        fingerprint: `${clientId}:chat_ingestion_stale`,
+      })
+    }
+  }
+
+  // Unread conversations backlog
+  const unread = chatKpi.unreadConversations
+  if (unread >= ALERT_THRESHOLDS.chatUnreadBacklogCritical) {
+    out.push({
+      clientId,
+      ruleKey: 'chat_unread_backlog',
+      source: 'chat',
+      severity: 'critical',
+      confidence: 'exact',
+      title: 'Large unread conversations backlog',
+      description: `${unread} conversations awaiting review — potential missed leads`,
+      recommendedAction: 'Review unread conversations in the Inbox to avoid missed leads',
+      evidence: { unreadCount: unread, totalConversations: chatKpi.totalConversations },
+      fingerprint: `${clientId}:chat_unread_backlog`,
+    })
+  } else if (unread >= ALERT_THRESHOLDS.chatUnreadBacklogWarning) {
+    out.push({
+      clientId,
+      ruleKey: 'chat_unread_backlog',
+      source: 'chat',
+      severity: 'warning',
+      confidence: 'exact',
+      title: 'Unread conversations backlog',
+      description: `${unread} conversations awaiting review`,
+      recommendedAction: 'Review unread conversations in the Inbox',
+      evidence: { unreadCount: unread, totalConversations: chatKpi.totalConversations },
+      fingerprint: `${clientId}:chat_unread_backlog`,
+    })
   }
 }

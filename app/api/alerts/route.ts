@@ -14,6 +14,8 @@ import { listClientIntegrations } from '@/lib/integrations/crm/config-query'
 import { listCrmDeliveryLogs } from '@/lib/integrations/crm/query'
 import { listActiveClientServices } from '@/lib/dashboard/services-query'
 import { getTenantUsageSummary } from '@/lib/billing/usage-query'
+import { getConversationsKpiSummary } from '@/lib/chat/query'
+import { createSupabaseServerClient } from '@/lib/supabase/server'
 import type { TenantAlert, AlertSeverity, AlertStatus, AlertConfidence } from '@/lib/alerts/types'
 
 export async function GET() {
@@ -32,13 +34,30 @@ export async function GET() {
   }
 
   // Fallback: derive alerts from live data
-  const [{ data: callLogs }, integrations, deliveryLogs, services, usageSummary] = await Promise.all([
+  const [{ data: callLogs }, integrations, deliveryLogs, services, usageSummary, chatKpi] = await Promise.all([
     getCallLogs(tenant.id, { limit: 100 }),
     listClientIntegrations(tenant.id),
     listCrmDeliveryLogs(tenant.id, undefined, 50),
     listActiveClientServices(tenant.id),
     getTenantUsageSummary(tenant.id),
+    getConversationsKpiSummary(tenant.id),
   ])
+
+  // Get last chat activity timestamp
+  let lastChatActivityAt: string | null = null
+  try {
+    const supabase = createSupabaseServerClient()
+    const { data: latestConv } = await supabase
+      .from('chat_conversations')
+      .select('last_message_at')
+      .eq('client_id', tenant.id)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle()
+    lastChatActivityAt = (latestConv?.last_message_at as string) ?? null
+  } catch {
+    // Chat tables may not exist yet
+  }
 
   const candidates = deriveAlertCandidates({
     clientId: tenant.id,
@@ -47,6 +66,8 @@ export async function GET() {
     integrations,
     usageSummary,
     servicesCount: services.length,
+    chatKpi,
+    lastChatActivityAt,
   })
 
   // Map candidates to TenantAlert shape for consistent API response

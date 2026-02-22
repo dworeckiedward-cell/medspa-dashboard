@@ -48,10 +48,11 @@ export interface TenantAccessResult {
  * Resolution priority:
  *
  *   A. Supabase Auth session (cookie) → user_tenants → tenant
- *      Three sub-cases:
- *        A1. 1 tenant   → return it directly
- *        A2. >1 tenants → tenant = null, needsTenantSelection = true
- *        A3. 0 tenants  → tenant = null, no_workspace UX
+ *      Sub-cases:
+ *        A1. 1 tenant     → return it directly
+ *        A2. >1 tenants + slug in URL/header that matches one → return that tenant
+ *        A3. >1 tenants + no slug                             → needsTenantSelection
+ *        A4. 0 tenants   → tenant = null, no_workspace UX
  *      Fails safe: any error falls through to path B.
  *
  *   B. Middleware-injected slug (demo / dev / subdomain)
@@ -67,14 +68,26 @@ export interface TenantAccessResult {
  *   !tenant                        → <TenantNotFound reason="not_found" />
  */
 export async function resolveTenantAccess(): Promise<TenantAccessResult> {
+  // Read middleware-injected slug early — needed for both auth and demo paths.
+  const headersList = headers()
+  const slug = headersList.get('x-tenant-slug') ?? ''
+
   // ── A. Authenticated path (Supabase Auth + user_tenants) ─────────────────
   const authResult = await getAuthenticatedUser()
+
+  console.log('[tenant-access] Auth result:', authResult ? {
+    userId: authResult.userId,
+    email: authResult.email,
+    tenantCount: authResult.tenants.length,
+    tenantSlugs: authResult.tenants.map((t) => t.slug),
+  } : null, '| slug from header:', slug || '(none)')
 
   if (authResult !== null) {
     const { userId, tenants } = authResult
 
     // A1. Exactly one tenant — happy path
     if (tenants.length === 1) {
+      console.log('[tenant-access] A1: Single tenant →', tenants[0].slug)
       return {
         tenant: tenants[0],
         accessMode: 'authenticated',
@@ -84,8 +97,30 @@ export async function resolveTenantAccess(): Promise<TenantAccessResult> {
       }
     }
 
-    // A2. Multiple tenants — user must pick one
+    // A2/A3. Multiple tenants
     if (tenants.length > 1) {
+      // If a slug was provided (via ?tenant= query param or subdomain),
+      // check if it matches one of the user's assigned tenants.
+      // This allows direct access via URL without going through the picker.
+      if (slug) {
+        const matched = tenants.find(
+          (t) => t.slug.toLowerCase() === slug.toLowerCase(),
+        )
+        if (matched) {
+          console.log('[tenant-access] A2: Multi-tenant, slug matched →', matched.slug)
+          return {
+            tenant: matched,
+            accessMode: 'authenticated',
+            userId,
+            tenantSlug: matched.slug,
+            needsTenantSelection: false,
+          }
+        }
+        console.log('[tenant-access] A2: Slug', slug, 'did not match any assigned tenant')
+      }
+
+      // No slug or slug didn't match — user must pick one
+      console.log('[tenant-access] A3: Multi-tenant, no match → picker')
       return {
         tenant: null,
         accessMode: 'authenticated',
@@ -96,7 +131,8 @@ export async function resolveTenantAccess(): Promise<TenantAccessResult> {
       }
     }
 
-    // A3. Zero tenants — authenticated but no workspace assigned yet
+    // A4. Zero tenants — authenticated but no workspace assigned yet
+    console.log('[tenant-access] A4: Authenticated but 0 tenants')
     return {
       tenant: null,
       accessMode: 'authenticated',
@@ -107,14 +143,13 @@ export async function resolveTenantAccess(): Promise<TenantAccessResult> {
   }
 
   // ── B. Demo / middleware-injected slug ────────────────────────────────────
-  const headersList = headers()
-  const slug = headersList.get('x-tenant-slug') ?? ''
-
   if (!slug) {
+    console.log('[tenant-access] B: No auth, no slug → none')
     return { tenant: null, accessMode: 'none', tenantSlug: null }
   }
 
   const tenant = await getTenantBySlug(slug)
+  console.log('[tenant-access] B: Demo slug →', slug, tenant ? 'found' : 'NOT FOUND')
   return {
     tenant,
     accessMode: 'demo',

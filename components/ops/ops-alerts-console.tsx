@@ -153,7 +153,7 @@ export function OpsAlertsConsole({
             return (
               <div
                 key={kpi.label}
-                className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3"
+                className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3"
               >
                 <div className="flex items-center gap-1.5 mb-1">
                   <Icon className={cn('h-3.5 w-3.5', kpi.color)} />

@@ -42,7 +42,7 @@ export default async function ReportsPage() {
       bookedNotificationCount={0}
       bookedNotifications={bookedNotifications}
     >
-      <div className="p-6 space-y-6 animate-fade-in">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
         {/* Page header with presentation toggle */}
         <ReportsPageHeader />
 

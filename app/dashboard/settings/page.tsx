@@ -19,6 +19,7 @@ import {
   CopyableValue,
   SettingsHeading,
 } from '@/components/dashboard/settings-sections'
+import { AiSystemControlCard } from '@/components/dashboard/ai-system-control-card'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,10 +51,10 @@ export default async function SettingsPage() {
 
   return (
     <DashboardLayout tenant={tenant} followUpCount={0} bookedNotificationCount={0} bookedNotifications={[]}>
-      <div className="max-w-2xl mx-auto p-6 pb-16">
-        {/* Sticky page heading — SettingsHeading is a client component so it
+      <div className="max-w-2xl mx-auto p-4 sm:p-6 pb-16">
+        {/* Page heading — SettingsHeading is a client component so it
             renders the translated title without making this page a client component */}
-        <div className="sticky top-14 z-10 -mx-6 px-6 pt-5 pb-4 mb-6 bg-[var(--brand-bg)]/95 backdrop-blur border-b border-[var(--brand-border)] transition-colors duration-200">
+        <div className="pt-5 pb-4 mb-6 border-b border-[var(--brand-border)]/50">
           <SettingsHeading />
         </div>
 
@@ -71,8 +72,20 @@ export default async function SettingsPage() {
                 currentLogoUrl={tenant.logo_url}
                 tenantName={tenant.name}
                 brandColor={tenant.brand_color}
+                tenantSlug={tenant.slug}
               />
             </div>
+          </section>
+
+          {/* AI System Control */}
+          <section className="space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--brand-text)]">AI System</h2>
+              <p className="text-xs text-[var(--brand-muted)] mt-0.5">
+                Control your AI receptionist operating state, fallback mode, and scheduling.
+              </p>
+            </div>
+            <AiSystemControlCard tenantSlug={tenant.slug} />
           </section>
 
           {/* Appearance */}

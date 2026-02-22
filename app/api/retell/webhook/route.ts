@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { safeCompare } from '@/lib/auth/timing-safe'
+import { rateLimit, webhookLimiter } from '@/lib/api/rate-limit'
 
 // ─── Retell/n8n Webhook Payload Schema ────────────────────────────────────────
 // TODO: Update field names to match actual Retell API v2 spec once confirmed.
@@ -86,6 +88,10 @@ const RetellWebhookSchema = z.object({
 }).passthrough() // Store unknown fields in raw_payload without rejecting
 
 export async function POST(request: NextRequest) {
+  // ── Rate limit ──────────────────────────────────────────────────────────────
+  const limited = rateLimit(request, webhookLimiter)
+  if (limited) return limited
+
   // ── Auth: Validate x-api-key or Bearer token ──────────────────────────────
   const apiKey =
     request.headers.get('x-api-key') ??
@@ -98,7 +104,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 })
   }
 
-  if (!apiKey || apiKey !== expectedKey) {
+  if (!apiKey || !safeCompare(apiKey, expectedKey)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

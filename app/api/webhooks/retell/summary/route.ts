@@ -33,6 +33,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { normaliseCallSummary, validateNormalisedSummary } from '@/lib/integrations/retell/normalize-call-summary'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { safeCompare } from '@/lib/auth/timing-safe'
+import { rateLimit, webhookLimiter } from '@/lib/api/rate-limit'
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -43,12 +45,16 @@ function isAuthorised(req: NextRequest): boolean {
 
   const expected = process.env.CALL_SUMMARY_WEBHOOK_SECRET
   if (!expected) return false
-  return secret === expected
+  return safeCompare(secret, expected)
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  // Rate limit
+  const limited = rateLimit(req, webhookLimiter)
+  if (limited) return limited
+
   // Auth
   if (!process.env.CALL_SUMMARY_WEBHOOK_SECRET) {
     console.error('[retell/summary] CALL_SUMMARY_WEBHOOK_SECRET is not set')

@@ -61,7 +61,7 @@ export function TenantNotFound({ slug, reason = 'not_found' }: TenantNotFoundPro
             Contact support →
           </a>
         ) : (
-          <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 text-left text-xs text-[var(--brand-muted)] space-y-1.5">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 text-left text-xs text-[var(--brand-muted)] space-y-1.5">
             <p className="font-semibold text-[var(--brand-text)] mb-2">Developer access:</p>
             <p>
               <code className="text-[var(--brand-primary)]">luxe.lvh.me:3000/dashboard</code>{' '}

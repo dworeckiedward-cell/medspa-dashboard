@@ -137,7 +137,7 @@ export function RoiSummaryCard({ callLogs, services, currency = 'USD', config }:
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {stats.map((stat) => {
                 const Icon = stat.icon
                 return (

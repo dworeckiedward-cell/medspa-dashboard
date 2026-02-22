@@ -33,7 +33,7 @@ export default async function FollowUpPage() {
       bookedNotificationCount={0}
       bookedNotifications={bookedNotifications}
     >
-      <div className="p-6 space-y-5 animate-fade-in">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 animate-fade-in">
         <FollowUpQueue tasks={tasks} />
       </div>
     </DashboardLayout>

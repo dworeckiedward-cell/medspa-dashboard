@@ -52,7 +52,7 @@ export function PartnerDetailHeader({ summary }: PartnerDetailHeaderProps) {
       </a>
 
       {/* Header card */}
-      <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           {/* Left — Partner info */}
           <div className="space-y-2">

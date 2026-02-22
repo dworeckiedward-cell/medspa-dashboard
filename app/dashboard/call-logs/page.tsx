@@ -46,7 +46,7 @@ export default async function CallLogsPage() {
       bookedNotificationCount={bookedNotificationCount}
       bookedNotifications={bookedNotifications}
     >
-      <div className="p-6 space-y-4 animate-fade-in">
+      <div className="p-4 sm:p-6 space-y-4 animate-fade-in">
         {/* Page heading */}
         <div>
           <h1 className="text-xl font-semibold text-[var(--brand-text)]">Call Logs</h1>

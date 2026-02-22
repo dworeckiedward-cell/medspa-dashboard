@@ -7,7 +7,10 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 // ── Auth callback ──────────────────────────────────────────────────────────
 // Handles OAuth redirect (code exchange) and magic link (hash tokens).
-// Shows a branded loading state while processing.
+// After session is established, resolves tenant count to decide redirect target:
+//   0 tenants   → /dashboard (will show "no workspace" screen)
+//   1 tenant    → /dashboard (auto-resolved by resolveTenantAccess)
+//   2+ tenants  → /dashboard/select-tenant
 
 function parseHash(hash: string) {
   const h = hash.startsWith('#') ? hash.slice(1) : hash
@@ -15,6 +18,28 @@ function parseHash(hash: string) {
   return {
     access_token: params.get('access_token'),
     refresh_token: params.get('refresh_token'),
+  }
+}
+
+async function resolvePostLoginRedirect(supabase: ReturnType<typeof getSupabaseBrowserClient>): Promise<string> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return '/dashboard'
+
+    // Check how many tenants this user has access to
+    const { data: memberships } = await supabase
+      .from('user_tenants')
+      .select('client_id')
+      .eq('user_id', user.id)
+
+    const count = memberships?.length ?? 0
+
+    if (count === 0) return '/dashboard'
+    if (count === 1) return '/dashboard'
+    return '/dashboard/select-tenant'
+  } catch {
+    // If user_tenants doesn't exist or query fails, fall back to dashboard
+    return '/dashboard'
   }
 }
 
@@ -32,7 +57,8 @@ export default function AuthCallbackPage() {
         if (code) {
           const { error: err } = await supabase.auth.exchangeCodeForSession(code)
           if (err) throw err
-          router.replace('/dashboard?tenant=luxe')
+          const target = await resolvePostLoginRedirect(supabase)
+          router.replace(target)
           return
         }
 
@@ -43,13 +69,17 @@ export default function AuthCallbackPage() {
             refresh_token,
           })
           if (err) throw err
-          router.replace('/dashboard?tenant=luxe')
+          const target = await resolvePostLoginRedirect(supabase)
+          router.replace(target)
           return
         }
 
         // No code or tokens — redirect to login
         router.replace('/login')
-      } catch {
+      } catch (err) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[auth/callback] Error:', err)
+        }
         setError('Authentication failed. Redirecting to login…')
         setTimeout(() => router.replace('/login'), 2000)
       }

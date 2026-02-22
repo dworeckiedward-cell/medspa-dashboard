@@ -43,6 +43,7 @@ const SOURCE_LABELS: Record<AlertSource, string> = {
   calls: 'Calls',
   summaries_pipeline: 'Pipeline',
   usage_allowance: 'Usage',
+  chat: 'Chat',
   manual: 'Manual',
 }
 
@@ -130,16 +131,16 @@ export function OpsAlertsTable({ alerts, onAction }: OpsAlertsTableProps) {
   return (
     <div className="space-y-3">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2.5">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--brand-muted)]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--brand-muted)]" />
           <input
             type="text"
             placeholder="Search tenant or alert..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] pl-8 pr-3 py-1.5 text-xs text-[var(--brand-text)] placeholder:text-[var(--brand-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--user-accent)]"
+            className="w-full h-9 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] pl-8 pr-3 py-2 text-xs text-[var(--brand-text)] placeholder:text-[var(--brand-muted)]/70 focus:outline-none focus:ring-2 focus:ring-[var(--user-accent)]/20 focus:border-[var(--user-accent)] transition-colors"
           />
         </div>
 
@@ -147,7 +148,7 @@ export function OpsAlertsTable({ alerts, onAction }: OpsAlertsTableProps) {
         <select
           value={severityFilter}
           onChange={(e) => setSeverityFilter(e.target.value as AlertSeverity | 'all')}
-          className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] px-2 py-1.5 text-xs text-[var(--brand-text)]"
+          className="h-9 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-xs text-[var(--brand-text)]"
         >
           <option value="all">All severity</option>
           <option value="critical">Critical</option>
@@ -159,7 +160,7 @@ export function OpsAlertsTable({ alerts, onAction }: OpsAlertsTableProps) {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as AlertStatus | 'all')}
-          className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] px-2 py-1.5 text-xs text-[var(--brand-text)]"
+          className="h-9 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-xs text-[var(--brand-text)]"
         >
           <option value="all">All status</option>
           <option value="open">Open</option>
@@ -172,7 +173,7 @@ export function OpsAlertsTable({ alerts, onAction }: OpsAlertsTableProps) {
         <select
           value={sourceFilter}
           onChange={(e) => setSourceFilter(e.target.value as AlertSource | 'all')}
-          className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] px-2 py-1.5 text-xs text-[var(--brand-text)]"
+          className="h-9 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-xs text-[var(--brand-text)]"
         >
           <option value="all">All sources</option>
           <option value="integrations">Integrations</option>
@@ -188,7 +189,7 @@ export function OpsAlertsTable({ alerts, onAction }: OpsAlertsTableProps) {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] overflow-hidden">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] overflow-hidden">
         {/* Header */}
         <div className="grid grid-cols-[80px_1fr_1fr_80px_80px_70px_100px] gap-2 px-4 py-2 text-[10px] font-medium text-[var(--brand-muted)] uppercase tracking-wider border-b border-[var(--brand-border)] bg-[var(--brand-bg)]">
           <button onClick={() => toggleSort('severity')} className="flex items-center gap-1 hover:text-[var(--brand-text)]">

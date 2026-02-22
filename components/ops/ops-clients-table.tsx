@@ -1,22 +1,42 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, ArrowUpDown, ExternalLink, BarChart3, Plug, Eye } from 'lucide-react'
+import { Search, ArrowUpDown, ExternalLink, BarChart3, Plug, Eye, Pencil, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { getHealthBadgeStyle, type HealthLevel } from '@/lib/ops/health-score'
+import {
+  PAYBACK_STATUS_LABELS,
+  PAYBACK_STATUS_COLORS,
+  LTV_CONFIDENCE_LABELS,
+  CAC_SOURCE_LABELS,
+  CAC_SOURCE_COLORS,
+} from '@/lib/ops/unit-economics/types'
+import {
+  SETUP_FEE_STATUS_LABELS,
+  SETUP_FEE_STATUS_COLORS,
+  RETAINER_STATUS_LABELS,
+  RETAINER_STATUS_COLORS,
+} from '@/lib/ops-financials/types'
+import type { ClientCommercialSnapshot, SetupFeeStatus, RetainerStatus } from '@/lib/ops-financials/types'
+import { formatMoneyCompact, formatLastPaidLabel } from '@/lib/ops-financials/format'
+import { CacEditDialog } from './cac-edit-dialog'
 import type { ClientOverview } from '@/lib/ops/query'
 import type { ClientHealthScore } from '@/lib/ops/health-score'
+import type { ClientUnitEconomics } from '@/lib/ops/unit-economics/types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface OpsClientsTableProps {
   overviews: ClientOverview[]
   healthScores: Map<string, ClientHealthScore>
+  unitEconomics?: ClientUnitEconomics[]
+  commercialSnapshots?: ClientCommercialSnapshot[]
+  onUnitEconomicsRefresh?: () => void
 }
 
-type SortKey = 'name' | 'status' | 'calls' | 'bookings' | 'revenue' | 'lastActivity'
+type SortKey = 'name' | 'status' | 'calls' | 'bookings' | 'revenue' | 'lastActivity' | 'cac' | 'ltv' | 'ltvCac' | 'retainer' | 'lastPaid'
 type SortDir = 'asc' | 'desc'
 
 // ── Filter presets ───────────────────────────────────────────────────────────
@@ -24,7 +44,7 @@ type SortDir = 'asc' | 'desc'
 interface FilterPreset {
   key: string
   label: string
-  filter: (o: ClientOverview, h?: ClientHealthScore) => boolean
+  filter: (o: ClientOverview, h?: ClientHealthScore, e?: ClientUnitEconomics) => boolean
 }
 
 const FILTER_PRESETS: FilterPreset[] = [
@@ -38,15 +58,57 @@ const FILTER_PRESETS: FilterPreset[] = [
     label: 'No activity (30d)',
     filter: (o) => o.callStats.totalCalls === 0,
   },
+  {
+    key: 'no-cac',
+    label: 'No CAC',
+    filter: (_o, _h, e) => !e || e.cacAmount === null,
+  },
+  {
+    key: 'not-recovered',
+    label: 'Not recovered',
+    filter: (_o, _h, e) => e?.paybackStatus === 'not_recovered',
+  },
+  {
+    key: 'overdue',
+    label: 'Overdue',
+    filter: () => true, // Handled specially via snapshotMap
+  },
+  {
+    key: 'unpaid-setup',
+    label: 'Unpaid setup',
+    filter: () => true, // Handled specially via snapshotMap
+  },
 ]
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProps) {
+export function OpsClientsTable({ overviews, healthScores, unitEconomics, commercialSnapshots, onUnitEconomicsRefresh }: OpsClientsTableProps) {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('status')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [activeFilter, setActiveFilter] = useState('all')
+  const [editingClient, setEditingClient] = useState<ClientUnitEconomics | null>(null)
+
+  // Build economics map for fast lookup
+  const economicsMap = useMemo(() => {
+    const map = new Map<string, ClientUnitEconomics>()
+    if (unitEconomics) {
+      for (const e of unitEconomics) map.set(e.clientId, e)
+    }
+    return map
+  }, [unitEconomics])
+
+  // Build commercial snapshot map
+  const snapshotMap = useMemo(() => {
+    const map = new Map<string, ClientCommercialSnapshot>()
+    if (commercialSnapshots) {
+      for (const s of commercialSnapshots) map.set(s.clientId, s)
+    }
+    return map
+  }, [commercialSnapshots])
+
+  const hasEconomics = unitEconomics && unitEconomics.length > 0
+  const hasFinancials = commercialSnapshots && commercialSnapshots.length > 0
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -73,7 +135,15 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
     // Filter preset
     const preset = FILTER_PRESETS.find((p) => p.key === activeFilter)
     if (preset && preset.key !== 'all') {
-      result = result.filter((o) => preset.filter(o, healthScores.get(o.client.id)))
+      if (preset.key === 'overdue') {
+        result = result.filter((o) => snapshotMap.get(o.client.id)?.retainerStatus === 'overdue')
+      } else if (preset.key === 'unpaid-setup') {
+        result = result.filter((o) => snapshotMap.get(o.client.id)?.setupFeeStatus === 'unpaid')
+      } else {
+        result = result.filter((o) =>
+          preset.filter(o, healthScores.get(o.client.id), economicsMap.get(o.client.id)),
+        )
+      }
     }
 
     // Sort
@@ -87,6 +157,10 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
     result = [...result].sort((a, b) => {
       const ha = healthScores.get(a.client.id)
       const hb = healthScores.get(b.client.id)
+      const ea = economicsMap.get(a.client.id)
+      const eb = economicsMap.get(b.client.id)
+      const sa = snapshotMap.get(a.client.id)
+      const sb = snapshotMap.get(b.client.id)
       let cmp = 0
 
       switch (sortKey) {
@@ -111,13 +185,28 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
             b.callStats.lastCallAt ?? '',
           )
           break
+        case 'cac':
+          cmp = (ea?.cacAmount ?? -1) - (eb?.cacAmount ?? -1)
+          break
+        case 'ltv':
+          cmp = (ea?.totalCollectedLtv ?? 0) - (eb?.totalCollectedLtv ?? 0)
+          break
+        case 'ltvCac':
+          cmp = (ea?.paybackRatio ?? -1) - (eb?.paybackRatio ?? -1)
+          break
+        case 'retainer':
+          cmp = (sa?.retainerAmount ?? -1) - (sb?.retainerAmount ?? -1)
+          break
+        case 'lastPaid':
+          cmp = (sa?.lastPaidAt ?? '').localeCompare(sb?.lastPaidAt ?? '')
+          break
       }
 
       return sortDir === 'desc' ? -cmp : cmp
     })
 
     return result
-  }, [overviews, healthScores, search, activeFilter, sortKey, sortDir])
+  }, [overviews, healthScores, economicsMap, snapshotMap, search, activeFilter, sortKey, sortDir])
 
   return (
     <div className="space-y-3">
@@ -151,7 +240,7 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-[var(--brand-border)] overflow-hidden">
+      <div className="rounded-2xl border border-[var(--brand-border)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -161,6 +250,28 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
                 <SortHeader label="Calls" sortKey="calls" current={sortKey} dir={sortDir} onSort={toggleSort} className="text-right" />
                 <SortHeader label="Bookings" sortKey="bookings" current={sortKey} dir={sortDir} onSort={toggleSort} className="text-right" />
                 <SortHeader label="Revenue" sortKey="revenue" current={sortKey} dir={sortDir} onSort={toggleSort} className="text-right" />
+                {hasEconomics && (
+                  <>
+                    <SortHeader label="CAC" sortKey="cac" current={sortKey} dir={sortDir} onSort={toggleSort} className="text-right" />
+                    <SortHeader label="LTV" sortKey="ltv" current={sortKey} dir={sortDir} onSort={toggleSort} className="text-right" />
+                    <SortHeader label="LTV:CAC" sortKey="ltvCac" current={sortKey} dir={sortDir} onSort={toggleSort} className="text-right" />
+                    <th className="px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] text-center">
+                      Payback
+                    </th>
+                  </>
+                )}
+                {hasFinancials && (
+                  <>
+                    <th className="px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] text-center">
+                      Setup Fee
+                    </th>
+                    <SortHeader label="Retainer" sortKey="retainer" current={sortKey} dir={sortDir} onSort={toggleSort} className="text-right" />
+                    <SortHeader label="Last Paid" sortKey="lastPaid" current={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <th className="px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] text-center">
+                      MRR
+                    </th>
+                  </>
+                )}
                 <th className="px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] text-center">
                   Integrations
                 </th>
@@ -173,7 +284,7 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
             <tbody className="divide-y divide-[var(--brand-border)]">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-[var(--brand-muted)]">
+                  <td colSpan={99} className="px-4 py-12 text-center text-sm text-[var(--brand-muted)]">
                     {search || activeFilter !== 'all'
                       ? 'No clients match your filter'
                       : 'No active clients found'}
@@ -185,6 +296,11 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
                     key={overview.client.id}
                     overview={overview}
                     health={healthScores.get(overview.client.id)}
+                    economics={economicsMap.get(overview.client.id)}
+                    snapshot={snapshotMap.get(overview.client.id)}
+                    showEconomics={!!hasEconomics}
+                    showFinancials={!!hasFinancials}
+                    onEditCac={(e) => setEditingClient(e)}
                   />
                 ))
               )}
@@ -197,6 +313,19 @@ export function OpsClientsTable({ overviews, healthScores }: OpsClientsTableProp
       <p className="text-xs text-[var(--brand-muted)]">
         Showing {filtered.length} of {overviews.length} client{overviews.length !== 1 ? 's' : ''}
       </p>
+
+      {/* CAC edit dialog */}
+      {editingClient && (
+        <CacEditDialog
+          open={!!editingClient}
+          onOpenChange={(open) => { if (!open) setEditingClient(null) }}
+          clientEconomics={editingClient}
+          onSaved={() => {
+            setEditingClient(null)
+            onUnitEconomicsRefresh?.()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -241,9 +370,19 @@ function SortHeader({
 function ClientRow({
   overview,
   health,
+  economics,
+  snapshot,
+  showEconomics,
+  showFinancials,
+  onEditCac,
 }: {
   overview: ClientOverview
   health?: ClientHealthScore
+  economics?: ClientUnitEconomics
+  snapshot?: ClientCommercialSnapshot
+  showEconomics: boolean
+  showFinancials: boolean
+  onEditCac: (e: ClientUnitEconomics) => void
 }) {
   const { client, callStats, integrationsCount, integrationsHealthy } = overview
   const badge = getHealthBadgeStyle(health?.level ?? 'healthy')
@@ -270,7 +409,20 @@ function ClientRow({
             <p className="text-sm font-medium text-[var(--brand-text)] truncate">
               {client.name}
             </p>
-            <p className="text-[10px] text-[var(--brand-muted)]">{client.slug}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] text-[var(--brand-muted)]">{client.slug}</p>
+              {economics?.cacSource && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-[9px] font-medium rounded px-1 py-0.5"
+                  style={{
+                    backgroundColor: `${CAC_SOURCE_COLORS[economics.cacSource]}15`,
+                    color: CAC_SOURCE_COLORS[economics.cacSource],
+                  }}
+                >
+                  {CAC_SOURCE_LABELS[economics.cacSource]}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </td>
@@ -317,6 +469,139 @@ function ClientRow({
         </span>
       </td>
 
+      {/* Unit economics columns (only when data exists) */}
+      {showEconomics && (
+        <>
+          {/* CAC */}
+          <td className="px-4 py-3 text-right">
+            {economics?.cacAmount !== null && economics?.cacAmount !== undefined ? (
+              <span className="text-sm tabular-nums text-[var(--brand-text)]">
+                ${Math.round(economics.cacAmount).toLocaleString()}
+              </span>
+            ) : (
+              <button
+                onClick={() => economics && onEditCac(economics)}
+                className="text-[10px] text-[var(--brand-muted)] hover:text-[var(--brand-primary)] transition-colors"
+                title="Set CAC"
+              >
+                + Set
+              </button>
+            )}
+          </td>
+
+          {/* LTV */}
+          <td className="px-4 py-3 text-right">
+            <div>
+              <span className="text-sm tabular-nums text-[var(--brand-text)]">
+                ${Math.round(economics?.totalCollectedLtv ?? 0).toLocaleString()}
+              </span>
+              {economics && (
+                <span className={cn(
+                  'block text-[9px]',
+                  economics.ltvConfidence === 'exact'
+                    ? 'text-emerald-500'
+                    : economics.ltvConfidence === 'derived'
+                      ? 'text-blue-500'
+                      : 'text-[var(--brand-muted)]',
+                )}>
+                  {LTV_CONFIDENCE_LABELS[economics.ltvConfidence]}
+                </span>
+              )}
+            </div>
+          </td>
+
+          {/* LTV:CAC ratio */}
+          <td className="px-4 py-3 text-right">
+            {economics?.paybackRatio !== null && economics?.paybackRatio !== undefined ? (
+              <span className={cn(
+                'text-sm tabular-nums font-semibold',
+                economics.paybackRatio >= 3
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : economics.paybackRatio >= 1
+                    ? 'text-blue-600 dark:text-blue-400'
+                    : 'text-red-600 dark:text-red-400',
+              )}>
+                {economics.paybackRatio}x
+              </span>
+            ) : (
+              <span className="text-xs text-[var(--brand-muted)]">—</span>
+            )}
+          </td>
+
+          {/* Payback status */}
+          <td className="px-4 py-3 text-center">
+            {economics && (
+              <span className={cn(
+                'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
+                PAYBACK_STATUS_COLORS[economics.paybackStatus].bg,
+                PAYBACK_STATUS_COLORS[economics.paybackStatus].text,
+              )}>
+                {PAYBACK_STATUS_LABELS[economics.paybackStatus]}
+              </span>
+            )}
+          </td>
+        </>
+      )}
+
+      {/* Billing columns (only when financial data exists) */}
+      {showFinancials && (
+        <>
+          {/* Setup Fee status */}
+          <td className="px-4 py-3 text-center">
+            {snapshot ? (
+              <BillingBadge
+                label={SETUP_FEE_STATUS_LABELS[snapshot.setupFeeStatus]}
+                colors={SETUP_FEE_STATUS_COLORS[snapshot.setupFeeStatus]}
+              />
+            ) : (
+              <span className="text-xs text-[var(--brand-muted)]">—</span>
+            )}
+          </td>
+
+          {/* Retainer amount + status */}
+          <td className="px-4 py-3 text-right">
+            {snapshot && snapshot.retainerAmount ? (
+              <div>
+                <span className="text-sm tabular-nums text-[var(--brand-text)]">
+                  {formatMoneyCompact(snapshot.retainerAmount)}
+                </span>
+                <span className="block mt-0.5">
+                  <BillingBadge
+                    label={RETAINER_STATUS_LABELS[snapshot.retainerStatus]}
+                    colors={RETAINER_STATUS_COLORS[snapshot.retainerStatus]}
+                  />
+                </span>
+              </div>
+            ) : (
+              <span className="text-xs text-[var(--brand-muted)]">—</span>
+            )}
+          </td>
+
+          {/* Last Paid */}
+          <td className="px-4 py-3">
+            <span className="text-xs text-[var(--brand-muted)]">
+              {snapshot ? formatLastPaidLabel(snapshot.lastPaidAt) : '—'}
+            </span>
+          </td>
+
+          {/* MRR badge */}
+          <td className="px-4 py-3 text-center">
+            {snapshot ? (
+              <span className={cn(
+                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium',
+                snapshot.mrrIncluded
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500',
+              )}>
+                {snapshot.mrrIncluded ? 'Yes' : 'No'}
+              </span>
+            ) : (
+              <span className="text-xs text-[var(--brand-muted)]">—</span>
+            )}
+          </td>
+        </>
+      )}
+
       {/* Integrations */}
       <td className="px-4 py-3 text-center">
         {integrationsCount > 0 ? (
@@ -341,22 +626,34 @@ function ClientRow({
       {/* Actions */}
       <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
-          <ActionButton
+          {economics && (
+            <ActionButton
+              onClick={() => onEditCac(economics)}
+              icon={Pencil}
+              label="Edit CAC"
+            />
+          )}
+          <ActionLink
+            href={`/ops/clients/${client.id}/financials`}
+            icon={DollarSign}
+            label="Financials"
+          />
+          <ActionLink
             href={`/dashboard?tenant=${client.slug}&support=true`}
             icon={Eye}
             label="Support view"
           />
-          <ActionButton
+          <ActionLink
             href={`/dashboard/reports?tenant=${client.slug}`}
             icon={BarChart3}
             label="Reports"
           />
-          <ActionButton
+          <ActionLink
             href={`/dashboard/integrations?tenant=${client.slug}`}
             icon={Plug}
             label="Integrations"
           />
-          <ActionButton
+          <ActionLink
             href={`/dashboard?tenant=${client.slug}`}
             icon={ExternalLink}
             label="Dashboard"
@@ -367,7 +664,7 @@ function ClientRow({
   )
 }
 
-function ActionButton({
+function ActionLink({
   href,
   icon: Icon,
   label,
@@ -385,5 +682,42 @@ function ActionButton({
     >
       <Icon className="h-3.5 w-3.5" />
     </a>
+  )
+}
+
+function ActionButton({
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  onClick: () => void
+  icon: React.ElementType
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:bg-[var(--brand-border)]/40 transition-colors"
+      aria-label={label}
+      title={label}
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  )
+}
+
+function BillingBadge({
+  label,
+  colors,
+}: {
+  label: string
+  colors: { bg: string; text: string; dot: string }
+}) {
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-medium', colors.bg, colors.text)}>
+      <span className={cn('h-1 w-1 rounded-full', colors.dot)} />
+      {label}
+    </span>
   )
 }

@@ -193,21 +193,21 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
             </div>
 
             {/* Filter controls */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               {/* Search */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--brand-muted)]" />
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--brand-muted)]" />
                 <Input
                   placeholder={t.leads.search}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-8 h-8 w-44 text-xs"
+                  className="pl-8 h-9 w-48 text-xs"
                 />
               </div>
 
               {/* Status */}
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="h-8 w-36 text-xs">
+                <SelectTrigger className="h-9 w-36 text-xs">
                   <SelectValue placeholder={t.leads.allStatuses} />
                 </SelectTrigger>
                 <SelectContent>
@@ -220,7 +220,7 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
 
               {/* Source */}
               <Select value={filterSource} onValueChange={setFilterSource}>
-                <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectTrigger className="h-9 w-32 text-xs">
                   <SelectValue placeholder={t.leads.allSources} />
                 </SelectTrigger>
                 <SelectContent>
@@ -233,7 +233,7 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
 
               {/* Date preset */}
               <Select value={datePreset} onValueChange={(v) => setDatePreset(v as DatePreset)}>
-                <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectTrigger className="h-9 w-32 text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -248,10 +248,10 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
               <button
                 onClick={() => setFilterFollowUp((v) => !v)}
                 className={cn(
-                  'flex items-center gap-1.5 h-8 px-3 rounded-md border text-xs font-medium transition-colors',
+                  'flex items-center gap-1.5 h-9 px-3.5 rounded-lg border text-xs font-medium transition-all duration-150',
                   filterFollowUp
                     ? 'border-[var(--user-accent)] bg-[var(--user-accent-soft)] text-[var(--user-accent)]'
-                    : 'border-[var(--brand-border)] text-[var(--brand-muted)] hover:text-[var(--brand-text)]',
+                    : 'border-[var(--brand-border)]/60 text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:border-[var(--brand-border)]',
                 )}
               >
                 <Bell className="h-3 w-3" />

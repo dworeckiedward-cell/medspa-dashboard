@@ -234,7 +234,7 @@ function QueueTabBar({
   onSelect: (k: TabKey) => void
 }) {
   return (
-    <div className="flex gap-0 border-b border-[var(--brand-border)] overflow-x-auto" role="tablist">
+    <div className="flex gap-0 border-b border-[var(--brand-border)]/50 overflow-x-auto" role="tablist">
       {tabs.map((tab) => {
         const isActive = active === tab.key
         return (

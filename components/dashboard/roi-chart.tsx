@@ -1,14 +1,43 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { BarChart3 } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn, formatCurrency } from '@/lib/utils'
 import type { ChartDataPoint } from '@/types/database'
+
+// ── Range options ────────────────────────────────────────────────────────────
+
+type ChartRange = '1' | '3' | '7' | '14' | '30'
+
+const RANGE_OPTIONS: { value: ChartRange; label: string }[] = [
+  { value: '1', label: '24h' },
+  { value: '3', label: '3d' },
+  { value: '7', label: '7d' },
+  { value: '14', label: '14d' },
+  { value: '30', label: '30d' },
+]
+
+function getRangeStorageKey(tenantSlug?: string): string {
+  return tenantSlug
+    ? `servify:chartRange:${tenantSlug}`
+    : 'servify:chartRange'
+}
+
+function getInitialRange(tenantSlug?: string): ChartRange {
+  if (typeof window === 'undefined') return '30'
+  const stored = localStorage.getItem(getRangeStorageKey(tenantSlug))
+  if (stored && RANGE_OPTIONS.some((o) => o.value === stored)) return stored as ChartRange
+  return '30'
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface RoiChartProps {
   data: ChartDataPoint[]
   currency?: string
+  tenantSlug?: string
 }
 
 interface TooltipPayloadItem {
@@ -42,14 +71,46 @@ function CustomTooltip({ active, payload, label, currency }: CustomTooltipProps)
   )
 }
 
-export function RoiChart({ data, currency = 'USD' }: RoiChartProps) {
-  const hasData = data.some((d) => d.potential > 0 || d.booked > 0 || d.inquiries > 0)
+export function RoiChart({ data, currency = 'USD', tenantSlug }: RoiChartProps) {
+  const [range, setRange] = useState<ChartRange>(() => getInitialRange(tenantSlug))
+
+  // Filter data to the selected range (data is sorted chronologically, 1 point per day)
+  const filteredData = useMemo(() => {
+    const days = Number(range)
+    if (days >= data.length) return data
+    return data.slice(-days)
+  }, [data, range])
+
+  const hasData = filteredData.some((d) => d.potential > 0 || d.booked > 0 || d.inquiries > 0)
+
+  function handleRangeChange(newRange: ChartRange) {
+    setRange(newRange)
+    localStorage.setItem(getRangeStorageKey(tenantSlug), newRange)
+  }
 
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Revenue Pipeline</CardTitle>
-        <CardDescription>Cumulative values over the last 30 days</CardDescription>
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle className="text-base">Revenue Pipeline</CardTitle>
+          <div className="flex items-center gap-0.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-0.5">
+            {RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleRangeChange(opt.value)}
+                className={cn(
+                  'rounded-md px-2 py-1 text-[11px] font-medium transition-colors duration-150',
+                  range === opt.value
+                    ? 'bg-[var(--brand-surface)] text-[var(--brand-text)] shadow-sm'
+                    : 'text-[var(--brand-muted)] hover:text-[var(--brand-text)]',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         {!hasData ? (
@@ -66,7 +127,7 @@ export function RoiChart({ data, currency = 'USD' }: RoiChartProps) {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={data} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+            <AreaChart data={filteredData} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradPotential" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--brand-primary)" stopOpacity={0.3} />

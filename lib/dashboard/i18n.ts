@@ -30,6 +30,8 @@ const dict = {
       reports: 'Reports & ROI',
       settings: 'Settings',
       aiReceptionist: 'AI Receptionist',
+      conversations: 'Conversations',
+      support: 'Support',
     },
     settings: {
       pageTitle: 'Settings',
@@ -160,6 +162,8 @@ const dict = {
       reports: 'Raporty i ROI',
       settings: 'Ustawienia',
       aiReceptionist: 'Asystent AI',
+      conversations: 'Rozmowy',
+      support: 'Wsparcie',
     },
     settings: {
       pageTitle: 'Ustawienia',
@@ -289,6 +293,8 @@ const dict = {
       reports: 'Informes y ROI',
       settings: 'Configuración',
       aiReceptionist: 'Recepcionista IA',
+      conversations: 'Conversaciones',
+      support: 'Soporte',
     },
     settings: {
       pageTitle: 'Configuración',
@@ -417,6 +423,7 @@ export type TranslationDict = {
   nav: {
     dashboard: string; leads: string; callLogs: string; followUp: string
     integrations: string; reports: string; settings: string; aiReceptionist: string
+    conversations: string; support: string
   }
   settings: {
     pageTitle: string; pageSubtitle: string; appearance: string; appearanceDesc: string

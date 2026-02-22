@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
 import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
+import { OpsUnauthorized } from '@/components/shared/ops-unauthorized'
 import { getAllClientOverviews, getAllRecentDeliveryLogs } from '@/lib/ops/query'
 import { computeClientHealth, type HealthLevel } from '@/lib/ops/health-score'
 import { deriveOpsAlerts } from '@/lib/ops/alerts'
@@ -9,6 +9,15 @@ import { OpsClientsTable } from '@/components/ops/ops-clients-table'
 import { OpsAlertsPanel } from '@/components/ops/ops-alerts-panel'
 import { HealthDistributionCard } from '@/components/ops/health-distribution-card'
 import { OpsUsageWatchlist } from '@/components/ops/ops-usage-watchlist'
+import { OpsConversationsWatchlist } from '@/components/ops/ops-conversations-watchlist'
+import { OpsAiControlWatchlist } from '@/components/ops/ops-ai-control-watchlist'
+import { CacSourceSummaryCard } from '@/components/ops/cac-source-summary-card'
+import { AcquisitionCohortsCard } from '@/components/ops/acquisition-cohorts-card'
+import { OpsFinancialKpiStrip } from '@/components/ops/ops-financial-kpi-strip'
+import { getAllClientUnitEconomics } from '@/lib/ops/unit-economics/query'
+import { buildCohortRows, buildCacSourceRows } from '@/lib/ops/unit-economics/cohorts'
+import { getAllCommercialSnapshots } from '@/lib/ops-financials/query'
+import { computeOpsFinancialKpis } from '@/lib/ops-financials/compute'
 import type { ClientHealthScore } from '@/lib/ops/health-score'
 
 export const dynamic = 'force-dynamic'
@@ -18,8 +27,7 @@ export default async function OpsConsolePage() {
   const access = await resolveOperatorAccess()
 
   if (!access.authorized) {
-    // Redirect unauthorized users to login
-    redirect('/login')
+    return <OpsUnauthorized email={access.email} reason={access.reason} />
   }
 
   // ── Audit log ────────────────────────────────────────────────────────────
@@ -30,9 +38,10 @@ export default async function OpsConsolePage() {
   })
 
   // ── Data fetch ───────────────────────────────────────────────────────────
-  const [overviews, deliveryLogs] = await Promise.all([
+  const [overviews, deliveryLogs, unitEconomics] = await Promise.all([
     getAllClientOverviews(),
     getAllRecentDeliveryLogs(24, 200),
+    getAllClientUnitEconomics(),
   ])
 
   // ── Health scoring ───────────────────────────────────────────────────────
@@ -92,11 +101,20 @@ export default async function OpsConsolePage() {
   // Serialize health scores for client components
   const healthScoresArray: Array<[string, ClientHealthScore]> = Array.from(healthScores.entries())
 
+  // ── Unit economics aggregations ────────────────────────────────────────────
+  const cohortRows = buildCohortRows(unitEconomics)
+  const cacSourceRows = buildCacSourceRows(unitEconomics)
+
+  // ── Financial snapshots + KPIs ─────────────────────────────────────────────
+  const clients = overviews.map((o) => o.client)
+  const commercialSnapshots = await getAllCommercialSnapshots(clients, unitEconomics)
+  const financialKpis = computeOpsFinancialKpis(commercialSnapshots)
+
   return (
     <div className="min-h-screen bg-[var(--brand-bg)]">
       {/* Header */}
-      <header className="border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 sm:px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div>
             <h1 className="text-lg font-semibold text-[var(--brand-text)] tracking-tight">
               Servify Operator Console
@@ -117,7 +135,7 @@ export default async function OpsConsolePage() {
       </header>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* KPI strip */}
         <OpsKpiStrip
           totalClients={totalClients}
@@ -138,11 +156,26 @@ export default async function OpsConsolePage() {
           </div>
         </div>
 
-        {/* Usage Watchlist */}
-        <OpsUsageWatchlist />
+        {/* Usage Watchlist + Chat Overview */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <OpsUsageWatchlist />
+          <OpsConversationsWatchlist />
+        </div>
+
+        {/* AI Control Watchlist */}
+        <OpsAiControlWatchlist />
+
+        {/* Financial Overview KPIs */}
+        <OpsFinancialKpiStrip kpis={financialKpis} />
+
+        {/* Unit Economics — CAC by Source + Acquisition Cohorts */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <CacSourceSummaryCard rows={cacSourceRows} />
+          <AcquisitionCohortsCard rows={cohortRows} />
+        </div>
 
         {/* Quick links */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <a
             href="/ops/alerts"
             className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-medium text-[var(--brand-text)] hover:border-rose-400/50 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
@@ -151,6 +184,15 @@ export default async function OpsConsolePage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
             </svg>
             Alerts Console
+          </a>
+          <a
+            href="/ops/requests"
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-medium text-[var(--brand-text)] hover:border-blue-400/50 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+            Support Requests
           </a>
           <a
             href="/ops/partners"
@@ -171,6 +213,8 @@ export default async function OpsConsolePage() {
           <OpsClientsTable
             overviews={overviews}
             healthScores={new Map(healthScoresArray)}
+            unitEconomics={unitEconomics}
+            commercialSnapshots={commercialSnapshots}
           />
         </div>
       </div>

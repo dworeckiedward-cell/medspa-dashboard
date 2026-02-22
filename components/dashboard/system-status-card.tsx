@@ -157,7 +157,7 @@ export function SystemStatusCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {items.map((item) => {
             const style = STATUS_STYLE[item.status]
             return (

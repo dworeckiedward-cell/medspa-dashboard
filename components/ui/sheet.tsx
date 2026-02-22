@@ -71,7 +71,7 @@ export function Sheet({ open, onClose, title, description, children, size = 'md'
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200 motion-reduce:animate-none"
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm animate-in fade-in duration-200 motion-reduce:animate-none"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -82,15 +82,15 @@ export function Sheet({ open, onClose, title, description, children, size = 'md'
         tabIndex={-1}
         className={cn(
           'relative flex flex-col h-full',
-          'bg-[var(--brand-surface)] border-l border-[var(--brand-border)]',
-          'shadow-2xl outline-none',
+          'bg-[var(--brand-surface)] border-l border-[var(--brand-border)]/60',
+          'shadow-xl outline-none',
           'animate-in slide-in-from-right duration-300 motion-reduce:animate-none',
           sizeClasses[size],
         )}
       >
         {/* Header */}
         {(title || description) && (
-          <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-[var(--brand-border)] shrink-0">
+          <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-[var(--brand-border)]/50 shrink-0">
             <div className="min-w-0">
               {title && (
                 <h2 className="text-base font-semibold text-[var(--brand-text)] leading-tight">

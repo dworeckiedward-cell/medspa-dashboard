@@ -8,6 +8,7 @@ import { BrandedLoader } from './loading-overlay'
 import { CommandPalette } from './command-palette'
 import { ToastProvider } from './toast-provider'
 import { PresentationModeProvider, usePresentationMode } from '@/lib/dashboard/presentation-mode'
+import { FrontDeskModeProvider } from '@/lib/dashboard/front-desk-mode'
 import { SupportViewBanner } from '@/components/ops/support-view-banner'
 import { cn } from '@/lib/utils'
 
@@ -28,22 +29,24 @@ export function DashboardLayout({
 }: DashboardLayoutProps) {
   return (
     <PresentationModeProvider>
-      <ToastProvider>
-        <BrandedLoader
-          tenantName={tenant.name}
-          logoUrl={tenant.logo_url}
-          brandColor={tenant.brand_color ?? '#2563EB'}
-        />
-        <CommandPalette tenant={tenant} />
-        <DashboardShell
-          tenant={tenant}
-          followUpCount={followUpCount}
-          bookedNotificationCount={bookedNotificationCount}
-          bookedNotifications={bookedNotifications}
-        >
-          {children}
-        </DashboardShell>
-      </ToastProvider>
+      <FrontDeskModeProvider tenantSlug={tenant.slug}>
+        <ToastProvider>
+          <BrandedLoader
+            tenantName={tenant.name}
+            logoUrl={tenant.logo_url}
+            brandColor={tenant.brand_color ?? '#2563EB'}
+          />
+          <CommandPalette tenant={tenant} />
+          <DashboardShell
+            tenant={tenant}
+            followUpCount={followUpCount}
+            bookedNotificationCount={bookedNotificationCount}
+            bookedNotifications={bookedNotifications}
+          >
+            {children}
+          </DashboardShell>
+        </ToastProvider>
+      </FrontDeskModeProvider>
     </PresentationModeProvider>
   )
 }
@@ -60,7 +63,7 @@ function DashboardShell({
   const { isPresenting } = usePresentationMode()
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[var(--brand-bg)] transition-colors duration-200">
+    <div className="flex flex-col h-[100dvh] overflow-hidden bg-[var(--brand-bg)] transition-colors duration-200">
       {/* Support view banner — shown when operator is viewing in support mode */}
       <SupportViewBanner tenantName={tenant.name} />
 

@@ -72,7 +72,7 @@ export function PartnersKpiStrip({ summaries, payout }: PartnersKpiStripProps) {
         return (
           <div
             key={kpi.label}
-            className="relative rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 overflow-hidden"
+            className="relative rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 overflow-hidden"
           >
             <div
               className="absolute inset-0 opacity-[0.04]"

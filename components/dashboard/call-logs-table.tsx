@@ -224,20 +224,20 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
           </div>
 
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--brand-muted)]" />
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--brand-muted)]" />
               <Input
                 placeholder="Search calls..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-8 w-48 text-xs"
+                className="pl-8 h-9 w-full sm:w-48 text-xs"
               />
             </div>
 
             {/* Direction filter */}
             <Select value={filterDirection} onValueChange={setFilterDirection}>
-              <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectTrigger className="h-9 w-full sm:w-32 text-xs">
                 <SelectValue placeholder="All calls" />
               </SelectTrigger>
               <SelectContent>
@@ -248,7 +248,7 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
             </Select>
 
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="h-8 w-36 text-xs">
+              <SelectTrigger className="h-9 w-full sm:w-36 text-xs">
                 <SelectValue placeholder="All types" />
               </SelectTrigger>
               <SelectContent>
@@ -262,7 +262,7 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
             </Select>
 
             <Select value={filterBooked} onValueChange={setFilterBooked}>
-              <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectTrigger className="h-9 w-full sm:w-32 text-xs">
                 <SelectValue placeholder="All status" />
               </SelectTrigger>
               <SelectContent>

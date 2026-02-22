@@ -77,6 +77,8 @@ export default async function OpsAlertsPage() {
         integrations: [], // integration detail not available cross-tenant
         usageSummary: null,
         servicesCount: 0,
+        chatKpi: null,
+        lastChatActivityAt: null,
       })
 
       for (const c of candidates) {

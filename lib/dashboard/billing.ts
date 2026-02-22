@@ -27,7 +27,7 @@ export function getMockBillingSummary(tenantId: string): BillingSummary | null {
     tenantId,
     planName: 'Growth',
     status: 'active',
-    amountCents: 29900,       // $299 / month
+    amountCents: 99800,       // $998 / month
     currency: 'usd',
     interval: 'month',
     nextBillingAt,
@@ -95,7 +95,7 @@ export function getBillingStatusConfig(status: BillingStatus): BillingStatusConf
 
 /**
  * Format a billing amount in cents to a locale-aware currency string.
- * Example: formatBillingAmount(29900, 'usd') → "$299"
+ * Example: formatBillingAmount(99800, 'usd') → "$998"
  */
 export function formatBillingAmount(cents: number, currency: string): string {
   try {

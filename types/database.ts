@@ -67,6 +67,16 @@ export interface Client {
   is_active: boolean
   created_at: string
   updated_at: string
+
+  // ── AI System Control (migration 018) ─────────────────────────────────────
+  ai_enabled: boolean
+  ai_operating_mode: string       // 'live' | 'paused' | 'outbound_only' | 'inbound_only' | 'maintenance'
+  ai_fallback_mode: string        // 'human_handoff' | 'voicemail_only' | 'capture_only' | 'disabled'
+  ai_pause_reason: string | null  // 'holiday' | 'staff_preference' | 'testing' | 'billing_issue' | 'other'
+  ai_pause_note: string | null
+  ai_auto_resume_at: string | null
+  ai_control_updated_at: string | null
+  ai_control_updated_by: string | null
 }
 
 export type CallType =

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { ThemeToggle } from './theme-toggle'
+import { CustomThemeSection } from './custom-theme-section'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import { useAccent, ACCENT_PRESETS, type AccentKey } from '@/lib/dashboard/accent'
 import { DICT, LANGUAGE_LABELS, type LangKey } from '@/lib/dashboard/i18n'
@@ -41,6 +42,9 @@ export function AppearanceSection() {
           </div>
           <LanguagePicker />
         </div>
+
+        {/* Custom Theme (Advanced) */}
+        <CustomThemeSection />
       </div>
     </SettingsSection>
   )
@@ -341,7 +345,7 @@ export function SettingsSection({
         <h2 className="text-sm font-semibold text-[var(--brand-text)]">{title}</h2>
         <p className="text-xs text-[var(--brand-muted)] mt-0.5">{description}</p>
       </div>
-      <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5">
         {children}
       </div>
     </section>

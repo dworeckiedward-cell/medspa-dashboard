@@ -57,6 +57,13 @@ export const ALERT_THRESHOLDS = {
   /** Follow-up backlog */
   followUpBacklogWarning: 10,
   followUpBacklogCritical: 25,
+
+  /** Chat ingestion stale (hours since last chat event) */
+  chatIngestionStaleHours: 48,
+
+  /** Chat unread backlog */
+  chatUnreadBacklogWarning: 10,
+  chatUnreadBacklogCritical: 25,
 } as const
 
 // ── Rule registry ────────────────────────────────────────────────────────────
@@ -202,6 +209,29 @@ export const ALERT_RULES: AlertRuleConfig[] = [
     thresholds: {
       warning: ALERT_THRESHOLDS.followUpBacklogWarning,
       critical: ALERT_THRESHOLDS.followUpBacklogCritical,
+    },
+  },
+  {
+    key: 'chat_ingestion_stale',
+    source: 'chat',
+    defaultSeverity: 'warning',
+    confidence: 'derived',
+    title: 'Chat ingestion stale',
+    descriptionTemplate: 'No new chat events received in {hours}+ hours',
+    recommendedAction: 'Check chatbot webhook connectivity and n8n/ManyChat workflows',
+    thresholds: { hours: ALERT_THRESHOLDS.chatIngestionStaleHours },
+  },
+  {
+    key: 'chat_unread_backlog',
+    source: 'chat',
+    defaultSeverity: 'warning',
+    confidence: 'exact',
+    title: 'Unread conversations backlog',
+    descriptionTemplate: '{count} conversations awaiting review',
+    recommendedAction: 'Review unread conversations in the Inbox to avoid missed leads',
+    thresholds: {
+      warning: ALERT_THRESHOLDS.chatUnreadBacklogWarning,
+      critical: ALERT_THRESHOLDS.chatUnreadBacklogCritical,
     },
   },
 ]
