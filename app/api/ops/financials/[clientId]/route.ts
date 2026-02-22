@@ -39,7 +39,7 @@ export async function GET(
     // Fetch client
     const supabase = createSupabaseServerClient()
     const { data: clientData, error: clientError } = await supabase
-      .from('clients')
+      .from('tenants')
       .select('*')
       .eq('id', clientId)
       .maybeSingle()

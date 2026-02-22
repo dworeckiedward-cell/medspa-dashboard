@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Search, ArrowUpDown, ExternalLink, BarChart3, Plug, Eye, Pencil, DollarSign } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
+import { Search, ArrowUpDown, ExternalLink, BarChart3, Plug, Eye, Pencil, DollarSign, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
@@ -22,7 +22,10 @@ import {
 import type { ClientCommercialSnapshot, SetupFeeStatus, RetainerStatus } from '@/lib/ops-financials/types'
 import { formatMoneyCompact, formatLastPaidLabel } from '@/lib/ops-financials/format'
 import { CacEditDialog } from './cac-edit-dialog'
+import { EditFinancialProfileDialog } from './edit-financial-profile-dialog'
 import { OpsClientControlDrawer } from './ops-client-control-drawer'
+import type { ClientFinancialProfile } from '@/lib/ops-financials/types'
+import { DEFAULT_FINANCIAL_PROFILE } from '@/lib/ops-financials/types'
 import type { ClientOverview } from '@/lib/ops/query'
 import type { ClientHealthScore } from '@/lib/ops/health-score'
 import type { ClientUnitEconomics } from '@/lib/ops/unit-economics/types'
@@ -90,6 +93,41 @@ export function OpsClientsTable({ overviews, healthScores, unitEconomics, commer
   const [activeFilter, setActiveFilter] = useState('all')
   const [editingClient, setEditingClient] = useState<ClientUnitEconomics | null>(null)
   const [inspectingClientId, setInspectingClientId] = useState<string | null>(null)
+  const [editingFinancials, setEditingFinancials] = useState<{
+    clientId: string
+    clientName: string
+    profile: ClientFinancialProfile
+  } | null>(null)
+  const [loadingFinancials, setLoadingFinancials] = useState<string | null>(null)
+
+  const handleEditFinancials = useCallback(async (clientId: string, clientName: string) => {
+    setLoadingFinancials(clientId)
+    try {
+      const res = await fetch(`/api/ops/financials/${clientId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setEditingFinancials({
+          clientId,
+          clientName,
+          profile: data.profile ?? { ...DEFAULT_FINANCIAL_PROFILE, clientId },
+        })
+      } else {
+        setEditingFinancials({
+          clientId,
+          clientName,
+          profile: { ...DEFAULT_FINANCIAL_PROFILE, clientId },
+        })
+      }
+    } catch {
+      setEditingFinancials({
+        clientId,
+        clientName,
+        profile: { ...DEFAULT_FINANCIAL_PROFILE, clientId },
+      })
+    } finally {
+      setLoadingFinancials(null)
+    }
+  }, [])
 
   // Build economics map for fast lookup
   const economicsMap = useMemo(() => {
@@ -303,6 +341,8 @@ export function OpsClientsTable({ overviews, healthScores, unitEconomics, commer
                     showEconomics={!!hasEconomics}
                     showFinancials={!!hasFinancials}
                     onEditCac={(e) => setEditingClient(e)}
+                    onEditFinancials={(id, name) => handleEditFinancials(id, name)}
+                    loadingFinancials={loadingFinancials}
                     onInspect={(id) => setInspectingClientId(id)}
                   />
                 ))
@@ -325,6 +365,21 @@ export function OpsClientsTable({ overviews, healthScores, unitEconomics, commer
           clientEconomics={editingClient}
           onSaved={() => {
             setEditingClient(null)
+            onUnitEconomicsRefresh?.()
+          }}
+        />
+      )}
+
+      {/* Edit financial profile dialog */}
+      {editingFinancials && (
+        <EditFinancialProfileDialog
+          open={!!editingFinancials}
+          onOpenChange={(open) => { if (!open) setEditingFinancials(null) }}
+          clientId={editingFinancials.clientId}
+          clientName={editingFinancials.clientName}
+          profile={editingFinancials.profile}
+          onSaved={() => {
+            setEditingFinancials(null)
             onUnitEconomicsRefresh?.()
           }}
         />
@@ -388,6 +443,8 @@ function ClientRow({
   showEconomics,
   showFinancials,
   onEditCac,
+  onEditFinancials,
+  loadingFinancials,
   onInspect,
 }: {
   overview: ClientOverview
@@ -397,6 +454,8 @@ function ClientRow({
   showEconomics: boolean
   showFinancials: boolean
   onEditCac: (e: ClientUnitEconomics) => void
+  onEditFinancials: (clientId: string, clientName: string) => void
+  loadingFinancials: string | null
   onInspect: (clientId: string) => void
 }) {
   const { client, callStats, integrationsCount, integrationsHealthy } = overview
@@ -651,10 +710,21 @@ function ClientRow({
               label="Edit CAC"
             />
           )}
+          {loadingFinancials === client.id ? (
+            <span className="inline-flex h-7 w-7 items-center justify-center">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--brand-muted)]" />
+            </span>
+          ) : (
+            <ActionButton
+              onClick={() => onEditFinancials(client.id, client.name)}
+              icon={DollarSign}
+              label="Edit Commercials"
+            />
+          )}
           <ActionLink
             href={`/ops/clients/${client.id}/financials`}
             icon={DollarSign}
-            label="Financials"
+            label="Financials page"
           />
           <ActionLink
             href={`/dashboard?tenant=${client.slug}&support=true`}

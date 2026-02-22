@@ -145,7 +145,7 @@ export default function LoginPage() {
             </p>
             <div className="flex items-center gap-3">
               <div className="w-16 h-16 rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex items-center justify-center">
-                <ServifyLogo size="xl" className="h-10 w-10" />
+                <ServifyLogo size="xl" className="h-12 w-12" />
               </div>
             </div>
           </div>
