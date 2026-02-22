@@ -144,8 +144,8 @@ export default function LoginPage() {
               Client Dashboard
             </p>
             <div className="flex items-center gap-3">
-              <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 flex items-center justify-center">
-                <ServifyLogo size="lg" className="h-8 w-8" />
+              <div className="w-16 h-16 rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] flex items-center justify-center">
+                <ServifyLogo size="xl" className="h-10 w-10" />
               </div>
             </div>
           </div>

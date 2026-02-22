@@ -27,11 +27,12 @@ const SIZE_MAP = {
   sm: { px: 14, icon: 'h-3.5 w-3.5', text: 'text-xs', subtitle: 'text-[9px]' },
   md: { px: 20, icon: 'h-5 w-5', text: 'text-base', subtitle: 'text-[10px]' },
   lg: { px: 32, icon: 'h-8 w-8', text: 'text-lg', subtitle: 'text-xs' },
+  xl: { px: 40, icon: 'h-10 w-10', text: 'text-xl', subtitle: 'text-sm' },
 } as const
 
 interface ServifyLogoProps {
   /** Size variant */
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   /** icon = image only, lockup = image + wordmark text */
   variant?: 'icon' | 'lockup'
   /** Optional subtitle below the wordmark (e.g. "AI Infrastructure") */
