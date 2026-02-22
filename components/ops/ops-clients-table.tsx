@@ -22,6 +22,7 @@ import {
 import type { ClientCommercialSnapshot, SetupFeeStatus, RetainerStatus } from '@/lib/ops-financials/types'
 import { formatMoneyCompact, formatLastPaidLabel } from '@/lib/ops-financials/format'
 import { CacEditDialog } from './cac-edit-dialog'
+import { OpsClientControlDrawer } from './ops-client-control-drawer'
 import type { ClientOverview } from '@/lib/ops/query'
 import type { ClientHealthScore } from '@/lib/ops/health-score'
 import type { ClientUnitEconomics } from '@/lib/ops/unit-economics/types'
@@ -88,6 +89,7 @@ export function OpsClientsTable({ overviews, healthScores, unitEconomics, commer
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [activeFilter, setActiveFilter] = useState('all')
   const [editingClient, setEditingClient] = useState<ClientUnitEconomics | null>(null)
+  const [inspectingClientId, setInspectingClientId] = useState<string | null>(null)
 
   // Build economics map for fast lookup
   const economicsMap = useMemo(() => {
@@ -301,6 +303,7 @@ export function OpsClientsTable({ overviews, healthScores, unitEconomics, commer
                     showEconomics={!!hasEconomics}
                     showFinancials={!!hasFinancials}
                     onEditCac={(e) => setEditingClient(e)}
+                    onInspect={(id) => setInspectingClientId(id)}
                   />
                 ))
               )}
@@ -326,6 +329,16 @@ export function OpsClientsTable({ overviews, healthScores, unitEconomics, commer
           }}
         />
       )}
+
+      {/* Client control drawer */}
+      <OpsClientControlDrawer
+        open={!!inspectingClientId}
+        onClose={() => setInspectingClientId(null)}
+        overview={inspectingClientId ? overviews.find((o) => o.client.id === inspectingClientId) ?? null : null}
+        health={inspectingClientId ? healthScores.get(inspectingClientId) : undefined}
+        economics={inspectingClientId ? economicsMap.get(inspectingClientId) : undefined}
+        snapshot={inspectingClientId ? snapshotMap.get(inspectingClientId) : undefined}
+      />
     </div>
   )
 }
@@ -375,6 +388,7 @@ function ClientRow({
   showEconomics,
   showFinancials,
   onEditCac,
+  onInspect,
 }: {
   overview: ClientOverview
   health?: ClientHealthScore
@@ -383,6 +397,7 @@ function ClientRow({
   showEconomics: boolean
   showFinancials: boolean
   onEditCac: (e: ClientUnitEconomics) => void
+  onInspect: (clientId: string) => void
 }) {
   const { client, callStats, integrationsCount, integrationsHealthy } = overview
   const badge = getHealthBadgeStyle(health?.level ?? 'healthy')
@@ -395,7 +410,10 @@ function ClientRow({
     : '—'
 
   return (
-    <tr className="hover:bg-[var(--brand-surface)]/50 transition-colors">
+    <tr
+      className="hover:bg-[var(--brand-surface)]/50 transition-colors cursor-pointer"
+      onClick={() => onInspect(client.id)}
+    >
       {/* Client name */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-2.5">
@@ -624,7 +642,7 @@ function ClientRow({
       </td>
 
       {/* Actions */}
-      <td className="px-4 py-3">
+      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-1">
           {economics && (
             <ActionButton

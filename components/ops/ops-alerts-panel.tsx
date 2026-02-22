@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { AlertTriangle, AlertCircle, Info, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { AlertTriangle, AlertCircle, Info, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { OpsAlert, OpsAlertSeverity } from '@/lib/ops/alerts'
@@ -37,25 +37,95 @@ const SEVERITY_CONFIG: Record<OpsAlertSeverity, {
 }
 
 const INITIAL_VISIBLE = 8
+const DISMISS_STORAGE_KEY = 'servify:ops-dismissed-alerts'
+const COLLAPSE_STORAGE_KEY = 'servify:ops-alerts-collapsed'
+
+function getDismissedIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DISMISS_STORAGE_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as { ids: string[]; ts: number }
+    // Expire after 24h so dismissed alerts reappear if still relevant
+    if (Date.now() - parsed.ts > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(DISMISS_STORAGE_KEY)
+      return new Set()
+    }
+    return new Set(parsed.ids)
+  } catch {
+    return new Set()
+  }
+}
+
+function saveDismissedIds(ids: Set<string>) {
+  try {
+    localStorage.setItem(DISMISS_STORAGE_KEY, JSON.stringify({
+      ids: Array.from(ids),
+      ts: Date.now(),
+    }))
+  } catch {
+    // localStorage unavailable
+  }
+}
 
 export function OpsAlertsPanel({ alerts }: OpsAlertsPanelProps) {
   const [expanded, setExpanded] = useState(false)
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const [collapsed, setCollapsed] = useState(false)
 
-  const criticalCount = alerts.filter((a) => a.severity === 'critical').length
-  const warningCount = alerts.filter((a) => a.severity === 'warning').length
-  const infoCount = alerts.filter((a) => a.severity === 'info').length
+  // Load dismissed + collapsed state from localStorage on mount
+  useEffect(() => {
+    setDismissedIds(getDismissedIds())
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_STORAGE_KEY) === 'true')
+    } catch {}
+  }, [])
 
-  const visible = expanded ? alerts : alerts.slice(0, INITIAL_VISIBLE)
-  const hasMore = alerts.length > INITIAL_VISIBLE
+  const handleDismiss = useCallback((alertId: string) => {
+    setDismissedIds((prev) => {
+      const next = new Set(prev)
+      next.add(alertId)
+      saveDismissedIds(next)
+      return next
+    })
+  }, [])
+
+  const handleToggleCollapse = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev
+      try { localStorage.setItem(COLLAPSE_STORAGE_KEY, String(next)) } catch {}
+      return next
+    })
+  }, [])
+
+  // Filter out dismissed alerts
+  const activeAlerts = alerts.filter((a) => !dismissedIds.has(a.id))
+
+  const criticalCount = activeAlerts.filter((a) => a.severity === 'critical').length
+  const warningCount = activeAlerts.filter((a) => a.severity === 'warning').length
+  const infoCount = activeAlerts.filter((a) => a.severity === 'info').length
+
+  const visible = expanded ? activeAlerts : activeAlerts.slice(0, INITIAL_VISIBLE)
+  const hasMore = activeAlerts.length > INITIAL_VISIBLE
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-[var(--brand-muted)]" />
-            Cross-Tenant Alerts
-          </CardTitle>
+          <button
+            type="button"
+            onClick={handleToggleCollapse}
+            className="flex items-center gap-2 text-left"
+          >
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-[var(--brand-muted)]" />
+              Cross-Tenant Alerts
+            </CardTitle>
+            {collapsed ? (
+              <ChevronDown className="h-3.5 w-3.5 text-[var(--brand-muted)]" />
+            ) : (
+              <ChevronUp className="h-3.5 w-3.5 text-[var(--brand-muted)]" />
+            )}
+          </button>
           <div className="flex items-center gap-2 text-xs">
             {criticalCount > 0 && (
               <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
@@ -78,48 +148,48 @@ export function OpsAlertsPanel({ alerts }: OpsAlertsPanelProps) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        {alerts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/30">
-              <svg className="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+
+      {!collapsed && (
+        <CardContent className="p-0">
+          {activeAlerts.length === 0 ? (
+            <div className="flex items-center gap-2 px-4 py-4 justify-center">
+              <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
+              <p className="text-sm font-medium text-[var(--brand-text)]">All systems healthy</p>
             </div>
-            <p className="text-sm font-medium text-[var(--brand-text)]">All systems healthy</p>
-            <p className="text-xs text-[var(--brand-muted)]">No alerts across any tenant</p>
-          </div>
-        ) : (
-          <>
-            <div className="divide-y divide-[var(--brand-border)]">
-              {visible.map((alert) => (
-                <AlertRow key={alert.id} alert={alert} />
-              ))}
-            </div>
-            {hasMore && (
-              <button
-                onClick={() => setExpanded((v) => !v)}
-                className="w-full px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] flex items-center justify-center gap-1 border-t border-[var(--brand-border)] transition-colors"
-              >
-                {expanded ? (
-                  <>Show less <ChevronUp className="h-3 w-3" /></>
-                ) : (
-                  <>Show {alerts.length - INITIAL_VISIBLE} more <ChevronDown className="h-3 w-3" /></>
-                )}
-              </button>
-            )}
-          </>
-        )}
-      </CardContent>
+          ) : (
+            <>
+              <div className="divide-y divide-[var(--brand-border)]">
+                {visible.map((alert) => (
+                  <AlertRow key={alert.id} alert={alert} onDismiss={handleDismiss} />
+                ))}
+              </div>
+              {hasMore && (
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  className="w-full px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] flex items-center justify-center gap-1 border-t border-[var(--brand-border)] transition-colors"
+                >
+                  {expanded ? (
+                    <>Show less <ChevronUp className="h-3 w-3" /></>
+                  ) : (
+                    <>Show {activeAlerts.length - INITIAL_VISIBLE} more <ChevronDown className="h-3 w-3" /></>
+                  )}
+                </button>
+              )}
+            </>
+          )}
+        </CardContent>
+      )}
     </Card>
   )
 }
 
-function AlertRow({ alert }: { alert: OpsAlert }) {
+function AlertRow({ alert, onDismiss }: { alert: OpsAlert; onDismiss: (id: string) => void }) {
   const config = SEVERITY_CONFIG[alert.severity]
 
   return (
-    <div className={cn('flex items-start gap-3 px-4 py-3 hover:bg-[var(--brand-surface)]/50 transition-colors')}>
+    <div className={cn('flex items-start gap-3 px-4 py-3 hover:bg-[var(--brand-surface)]/50 transition-colors group')}>
       <span className={cn('mt-0.5 h-2 w-2 shrink-0 rounded-full', config.dotClass)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -137,15 +207,26 @@ function AlertRow({ alert }: { alert: OpsAlert }) {
           {alert.description}
         </p>
       </div>
-      {alert.actionHref && (
-        <a
-          href={alert.actionHref}
-          className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 transition-colors"
+      <div className="flex items-center gap-1 shrink-0">
+        {alert.actionHref && (
+          <a
+            href={alert.actionHref}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/5 transition-colors"
+          >
+            {alert.actionLabel ?? 'View'}
+            <ArrowRight className="h-3 w-3" />
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={() => onDismiss(alert.id)}
+          className="opacity-0 group-hover:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-md text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:bg-[var(--brand-border)]/50 transition-all"
+          aria-label="Dismiss alert"
+          title="Dismiss (24h)"
         >
-          {alert.actionLabel ?? 'View'}
-          <ArrowRight className="h-3 w-3" />
-        </a>
-      )}
+          <X className="h-3 w-3" />
+        </button>
+      </div>
     </div>
   )
 }

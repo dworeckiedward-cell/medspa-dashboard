@@ -37,7 +37,7 @@ export interface ClientOverview {
 export async function listAllClients(): Promise<Client[]> {
   const supabase = createSupabaseServerClient()
   const { data, error } = await supabase
-    .from('clients')
+    .from('tenants')
     .select('*')
     .eq('is_active', true)
     .order('created_at', { ascending: false })

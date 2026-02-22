@@ -4,12 +4,13 @@ import { getAllClientOverviews, getAllRecentDeliveryLogs } from '@/lib/ops/query
 import { computeClientHealth, type HealthLevel } from '@/lib/ops/health-score'
 import { deriveOpsAlerts } from '@/lib/ops/alerts'
 import { logOperatorAction } from '@/lib/ops/audit'
+import { listOpsRequests, getSupportKpiSummary } from '@/lib/support/query'
 import { OpsKpiStrip } from '@/components/ops/ops-kpi-strip'
 import { OpsClientsTable } from '@/components/ops/ops-clients-table'
 import { OpsAlertsPanel } from '@/components/ops/ops-alerts-panel'
+import { OpsSupportInboxCard } from '@/components/ops/ops-support-inbox-card'
 import { HealthDistributionCard } from '@/components/ops/health-distribution-card'
 import { OpsUsageWatchlist } from '@/components/ops/ops-usage-watchlist'
-import { OpsConversationsWatchlist } from '@/components/ops/ops-conversations-watchlist'
 import { OpsAiControlWatchlist } from '@/components/ops/ops-ai-control-watchlist'
 import { CacSourceSummaryCard } from '@/components/ops/cac-source-summary-card'
 import { AcquisitionCohortsCard } from '@/components/ops/acquisition-cohorts-card'
@@ -38,14 +39,15 @@ export default async function OpsConsolePage() {
   })
 
   // ── Data fetch ───────────────────────────────────────────────────────────
-  const [overviews, deliveryLogs, unitEconomics] = await Promise.all([
+  const [overviews, deliveryLogs, unitEconomics, recentRequests, supportKpi] = await Promise.all([
     getAllClientOverviews(),
     getAllRecentDeliveryLogs(24, 200),
     getAllClientUnitEconomics(),
+    listOpsRequests({ status: ['open', 'acknowledged', 'in_progress', 'waiting_for_client', 'reopened'], limit: 5 }),
+    getSupportKpiSummary(),
   ])
 
   // ── Health scoring ───────────────────────────────────────────────────────
-  // Count delivery failures per client for health calculation
   const failuresByClient = new Map<string, number>()
   for (const log of deliveryLogs) {
     if (!log.success) {
@@ -112,16 +114,21 @@ export default async function OpsConsolePage() {
 
   return (
     <div className="min-h-screen bg-[var(--brand-bg)]">
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 sm:px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold text-[var(--brand-text)] tracking-tight">
-              Servify Operator Console
-            </h1>
-            <p className="text-xs text-[var(--brand-muted)] mt-0.5">
-              Multi-tenant control tower — {totalClients} active client{totalClients !== 1 ? 's' : ''}
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 text-white text-sm font-bold shadow-sm">
+              S
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold text-[var(--brand-text)] tracking-tight">
+                Servify OS
+              </h1>
+              <p className="text-[11px] text-[var(--brand-muted)] mt-0.5">
+                Operator Console — {totalClients} active client{totalClients !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-[var(--brand-muted)]">
@@ -134,9 +141,9 @@ export default async function OpsConsolePage() {
         </div>
       </header>
 
-      {/* Content */}
+      {/* ── Content ────────────────────────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {/* KPI strip */}
+        {/* 1. KPI strip */}
         <OpsKpiStrip
           totalClients={totalClients}
           healthyClients={healthyClients}
@@ -146,35 +153,52 @@ export default async function OpsConsolePage() {
           totalRevenue={totalRevenue}
         />
 
-        {/* Alerts + Health distribution */}
+        {/* 2. Triage Row — Alerts + Support Inbox */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <OpsAlertsPanel alerts={alerts} />
+          </div>
+          <div>
+            <OpsSupportInboxCard requests={recentRequests} kpi={supportKpi} />
+          </div>
+        </div>
+
+        {/* 3. All Clients table (primary operator workspace) */}
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--brand-text)] mb-3">
+            All Clients
+          </h2>
+          <OpsClientsTable
+            overviews={overviews}
+            healthScores={new Map(healthScoresArray)}
+            unitEconomics={unitEconomics}
+            commercialSnapshots={commercialSnapshots}
+          />
+        </div>
+
+        {/* 4. Usage + Health distribution */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <OpsUsageWatchlist />
           </div>
           <div>
             <HealthDistributionCard distribution={distribution} total={totalClients} />
           </div>
         </div>
 
-        {/* Usage Watchlist + Chat Overview */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <OpsUsageWatchlist />
-          <OpsConversationsWatchlist />
-        </div>
-
-        {/* AI Control Watchlist */}
+        {/* 5. AI Control Watchlist */}
         <OpsAiControlWatchlist />
 
-        {/* Financial Overview KPIs */}
+        {/* 6. Financial Overview KPIs */}
         <OpsFinancialKpiStrip kpis={financialKpis} />
 
-        {/* Unit Economics — CAC by Source + Acquisition Cohorts */}
+        {/* 7. Unit Economics — CAC by Source + Acquisition Cohorts */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <CacSourceSummaryCard rows={cacSourceRows} />
           <AcquisitionCohortsCard rows={cohortRows} />
         </div>
 
-        {/* Quick links */}
+        {/* 8. Quick links */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <a
             href="/ops/alerts"
@@ -203,19 +227,6 @@ export default async function OpsConsolePage() {
             </svg>
             Partner Console
           </a>
-        </div>
-
-        {/* Clients table */}
-        <div>
-          <h2 className="text-sm font-semibold text-[var(--brand-text)] mb-3">
-            All Clients
-          </h2>
-          <OpsClientsTable
-            overviews={overviews}
-            healthScores={new Map(healthScoresArray)}
-            unitEconomics={unitEconomics}
-            commercialSnapshots={commercialSnapshots}
-          />
         </div>
       </div>
     </div>

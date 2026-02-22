@@ -167,7 +167,7 @@ export async function listOpsRequests(
     // Get client names for display
     const clientIds = Array.from(new Set(data.map((r) => r.client_id as string)))
     const { data: clients } = await supabase
-      .from('clients')
+      .from('tenants')
       .select('id, name, slug')
       .in('id', clientIds)
 
@@ -223,7 +223,7 @@ export async function getOpsRequestWithUpdates(
 
     // Fetch client info
     const { data: client } = await supabase
-      .from('clients')
+      .from('tenants')
       .select('name, slug')
       .eq('id', baseRequest.clientId)
       .maybeSingle()
