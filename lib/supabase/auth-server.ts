@@ -88,10 +88,14 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
 
     // 2. Fetch ALL tenants for this user via the service-role client.
     //    Service role bypasses RLS — safe because we already verified identity above.
+    //    Uses 2-step queries (memberships → tenants) to avoid PostgREST
+    //    relational join issues with schema cache.
     const serviceClient = createSupabaseServerClient()
-    const { data: rows, error: membershipError } = await serviceClient
+
+    // Step 2a: Get membership rows (user_tenants)
+    const { data: memberships, error: membershipError } = await serviceClient
       .from('user_tenants')
-      .select('client_id, clients:client_id(*)')
+      .select('client_id, role')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
 
@@ -104,12 +108,33 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
       return null
     }
 
-    // Map join result to Client[] (PostgREST returns joined rows as unknown)
-    const tenants: Client[] = (rows ?? [])
-      .map((r) => r.clients as unknown as Client)
-      .filter(Boolean)
+    const clientIds = (memberships ?? []).map((m) => m.client_id).filter(Boolean)
+    console.log('[auth] Membership rows:', memberships?.length ?? 0, '| client_ids:', clientIds)
 
-    console.log('[auth] Resolved:', tenants.length, 'tenant(s) for user', user.id)
+    if (clientIds.length === 0) {
+      console.log('[auth] No tenant memberships for user', user.id)
+      return { userId: user.id, email: user.email ?? null, tenants: [] }
+    }
+
+    // Step 2b: Fetch actual tenant (client) records by IDs
+    const { data: clientRows, error: clientError } = await serviceClient
+      .from('clients')
+      .select('*')
+      .in('id', clientIds)
+
+    if (clientError) {
+      console.warn('[auth] clients query error:', clientError.message)
+      return null
+    }
+
+    // Merge: preserve membership ordering (created_at ascending from step 2a)
+    const clientMap = new Map((clientRows ?? []).map((c) => [c.id, c]))
+    const tenants: Client[] = clientIds
+      .map((id) => clientMap.get(id) as Client | undefined)
+      .filter((t): t is Client => t != null)
+
+    console.log('[auth] Resolved:', tenants.length, 'tenant(s) for user', user.id,
+      '| slugs:', tenants.map((t) => t.slug))
 
     return {
       userId: user.id,

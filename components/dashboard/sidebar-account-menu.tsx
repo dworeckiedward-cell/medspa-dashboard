@@ -14,15 +14,12 @@ interface SidebarAccountMenuProps {
   tenant: Client
 }
 
-interface UserTenantRow {
-  client_id: string
-  clients: {
-    id: string
-    name: string
-    slug: string
-    brand_color: string | null
-    logo_url: string | null
-  }
+interface TenantSummary {
+  id: string
+  name: string
+  slug: string
+  brand_color: string | null
+  logo_url: string | null
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -31,7 +28,7 @@ export function SidebarAccountMenu({ tenant }: SidebarAccountMenuProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState<string | null>(null)
-  const [otherTenants, setOtherTenants] = useState<UserTenantRow['clients'][]>([])
+  const [otherTenants, setOtherTenants] = useState<TenantSummary[]>([])
   const [hasOps, setHasOps] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -46,17 +43,23 @@ export function SidebarAccountMenu({ tenant }: SidebarAccountMenuProps) {
 
         setEmail(user.email ?? null)
 
-        // Fetch all tenant memberships for switching
+        // Fetch all tenant memberships for switching (2-step to avoid PostgREST join issues)
         const { data: memberships } = await supabase
           .from('user_tenants')
-          .select('client_id, clients:client_id(id, name, slug, brand_color, logo_url)')
+          .select('client_id')
           .eq('user_id', user.id)
 
-        if (memberships) {
-          const others = memberships
-            .map((m) => m.clients as unknown as UserTenantRow['clients'])
-            .filter((t): t is UserTenantRow['clients'] => t !== null && t.id !== tenant.id)
-          setOtherTenants(others)
+        const clientIds = (memberships ?? []).map((m) => m.client_id).filter(Boolean)
+        if (clientIds.length > 0) {
+          const { data: tenantRows } = await supabase
+            .from('clients')
+            .select('id, name, slug, brand_color, logo_url')
+            .in('id', clientIds)
+
+          if (tenantRows) {
+            const others = (tenantRows as TenantSummary[]).filter((t) => t.id !== tenant.id)
+            setOtherTenants(others)
+          }
         }
 
         // Check ops access via server-resolved endpoint (single source of truth)
