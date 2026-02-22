@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, DollarSign, Calendar, Tag, FileText } from 'lucide-react'
+import { Loader2, DollarSign, Calendar, Tag, FileText, TrendingUp } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -37,8 +37,23 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
   const [acquiredAt, setAcquiredAt] = useState(
     clientEconomics.acquiredAt ? clientEconomics.acquiredAt.split('T')[0] : '',
   )
+  const [ltvAmount, setLtvAmount] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Load existing manual LTV when dialog opens — fetch from financial profile
+  const [ltvLoaded, setLtvLoaded] = useState(false)
+  if (open && !ltvLoaded) {
+    setLtvLoaded(true)
+    fetch(`/api/ops/financials/${clientEconomics.clientId}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.profile?.ltvMode === 'manual' && data.profile.ltvManualAmount != null) {
+          setLtvAmount(String(data.profile.ltvManualAmount))
+        }
+      })
+      .catch(() => {})
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -51,8 +66,16 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
       return
     }
 
+    const ltv = ltvAmount.trim() === '' ? null : parseFloat(ltvAmount)
+    if (ltv !== null && (isNaN(ltv) || ltv < 0)) {
+      setError('LTV amount must be a positive number')
+      setSaving(false)
+      return
+    }
+
     try {
-      const res = await fetch(`/api/ops/unit-economics/${clientEconomics.clientId}`, {
+      // Save CAC
+      const cacRes = await fetch(`/api/ops/unit-economics/${clientEconomics.clientId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -63,9 +86,26 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
         }),
       })
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error ?? 'Failed to save')
+      if (!cacRes.ok) {
+        const data = await cacRes.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Failed to save CAC')
+      }
+
+      // Save LTV to financial profile (if user entered a value or wants to clear it)
+      if (ltv !== null || ltvAmount.trim() === '') {
+        const ltvRes = await fetch(`/api/ops/financials/${clientEconomics.clientId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ltvMode: ltv !== null ? 'manual' : 'auto',
+            ltvManualAmount: ltv,
+          }),
+        })
+
+        if (!ltvRes.ok) {
+          const data = await ltvRes.json().catch(() => ({}))
+          throw new Error(data.error ?? 'Failed to save LTV')
+        }
       }
 
       onSaved()
@@ -103,9 +143,9 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-base">Edit CAC — {clientEconomics.clientName}</DialogTitle>
+          <DialogTitle className="text-base">Edit CAC & LTV — {clientEconomics.clientName}</DialogTitle>
           <DialogDescription className="text-xs">
-            Set the customer acquisition cost for internal financial tracking.
+            Set acquisition cost and lifetime value for internal financial tracking.
           </DialogDescription>
         </DialogHeader>
 
@@ -117,22 +157,46 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
             </div>
           )}
 
-          {/* CAC Amount */}
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--brand-text)]">
-              <DollarSign className="h-3.5 w-3.5 text-[var(--brand-muted)]" />
-              CAC Amount (USD)
-            </label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="e.g. 500"
-              value={cacAmount}
-              onChange={(e) => setCacAmount(e.target.value)}
-              disabled={saving}
-              className="h-9"
-            />
+          {/* CAC + LTV side by side */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* CAC Amount */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--brand-text)]">
+                <DollarSign className="h-3.5 w-3.5 text-[var(--brand-muted)]" />
+                CAC (USD)
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 500"
+                value={cacAmount}
+                onChange={(e) => setCacAmount(e.target.value)}
+                disabled={saving}
+                className="h-9"
+              />
+            </div>
+
+            {/* LTV Amount */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--brand-text)]">
+                <TrendingUp className="h-3.5 w-3.5 text-[var(--brand-muted)]" />
+                LTV (USD)
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Manual override"
+                value={ltvAmount}
+                onChange={(e) => setLtvAmount(e.target.value)}
+                disabled={saving}
+                className="h-9"
+              />
+              <p className="text-[9px] text-[var(--brand-muted)]">
+                Leave empty for auto-derived LTV
+              </p>
+            </div>
           </div>
 
           {/* CAC Source */}
@@ -230,7 +294,7 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
                     Saving...
                   </>
                 ) : (
-                  'Save CAC'
+                  'Save'
                 )}
               </Button>
             </div>

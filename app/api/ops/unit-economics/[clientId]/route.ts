@@ -14,6 +14,8 @@ import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
 import { upsertClientCac, clearClientCac } from '@/lib/ops/unit-economics/mutations'
 import { logOperatorAction } from '@/lib/ops/audit'
 
+export const dynamic = 'force-dynamic'
+
 // ── PATCH: upsert CAC ──────────────────────────────────────────────────────
 
 const PatchSchema = z.object({
@@ -26,14 +28,14 @@ const PatchSchema = z.object({
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { clientId: string } },
+  { params }: { params: Promise<{ clientId: string }> },
 ) {
   const access = await resolveOperatorAccess()
   if (!access.authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
-  const { clientId } = params
+  const { clientId } = await params
   if (!clientId) {
     return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
   }
@@ -78,14 +80,14 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { clientId: string } },
+  { params }: { params: Promise<{ clientId: string }> },
 ) {
   const access = await resolveOperatorAccess()
   if (!access.authorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
   }
 
-  const { clientId } = params
+  const { clientId } = await params
   if (!clientId) {
     return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
   }

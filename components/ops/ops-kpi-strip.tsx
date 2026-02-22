@@ -1,8 +1,9 @@
 'use client'
 
-import { Building2, HeartPulse, AlertTriangle, Phone, CalendarCheck, DollarSign } from 'lucide-react'
+import { Building2, HeartPulse, AlertTriangle, Phone, CalendarCheck, DollarSign, TrendingUp, Receipt } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
+import { formatMoneyCompact } from '@/lib/ops-financials/format'
 
 interface OpsKpi {
   label: string
@@ -19,6 +20,8 @@ interface OpsKpiStripProps {
   totalCalls: number
   totalBookings: number
   totalRevenue: number
+  activeMrr?: number
+  collectedThisMonth?: number
 }
 
 export function OpsKpiStrip({
@@ -28,6 +31,8 @@ export function OpsKpiStrip({
   totalCalls,
   totalBookings,
   totalRevenue,
+  activeMrr,
+  collectedThisMonth,
 }: OpsKpiStripProps) {
   const kpis: OpsKpi[] = [
     {
@@ -36,6 +41,20 @@ export function OpsKpiStrip({
       icon: Building2,
       color: '#2563EB',
       sub: `${healthyClients} healthy`,
+    },
+    {
+      label: 'Active MRR',
+      value: formatMoneyCompact(activeMrr ?? null),
+      icon: TrendingUp,
+      color: '#10B981',
+      sub: 'Monthly recurring',
+    },
+    {
+      label: 'Collected',
+      value: formatMoneyCompact(collectedThisMonth ?? null),
+      icon: Receipt,
+      color: '#3B82F6',
+      sub: 'This month',
     },
     {
       label: 'Critical',
@@ -55,15 +74,15 @@ export function OpsKpiStrip({
       label: 'Bookings',
       value: totalBookings.toLocaleString(),
       icon: CalendarCheck,
-      color: '#10B981',
+      color: '#F59E0B',
       sub: 'Last 30 days',
     },
     {
-      label: 'Revenue',
+      label: 'Call Revenue',
       value: formatCurrency(totalRevenue, 'USD'),
       icon: DollarSign,
       color: '#F59E0B',
-      sub: 'Estimated',
+      sub: 'AI-estimated from calls',
     },
     {
       label: 'Avg Health',
@@ -75,7 +94,7 @@ export function OpsKpiStrip({
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8">
       {kpis.map((kpi) => {
         const Icon = kpi.icon
         return (

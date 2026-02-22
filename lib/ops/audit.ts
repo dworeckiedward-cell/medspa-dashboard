@@ -39,6 +39,8 @@ export type AuditAction =
   | 'client_financial_detail_viewed'
   | 'client_financial_profile_updated'
   | 'client_payment_logged'
+  | 'clinic_created'
+  | 'retell_prompts_generated'
 
 export interface AuditEntry {
   operatorId: string

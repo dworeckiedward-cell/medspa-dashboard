@@ -76,7 +76,9 @@ export async function createClinic(
     return { success: false, error: `Slug "${input.slug}" is already taken` }
   }
 
-  // 2. Create tenant row
+  // 2. Create tenant row — only include columns guaranteed to exist.
+  //    AI columns (ai_enabled, ai_operating_mode, etc.) are NOT included
+  //    because they may not exist in the production schema / PostgREST cache.
   const { data: tenant, error: tenantError } = await supabase
     .from('tenants')
     .insert({
@@ -91,11 +93,6 @@ export async function createClinic(
       timezone: 'America/New_York',
       currency: input.currency ?? 'USD',
       is_active: true,
-      ai_enabled: true,
-      ai_operating_mode: 'paused',
-      ai_fallback_mode: 'voicemail_only',
-      ai_pause_reason: 'testing',
-      ai_pause_note: 'New clinic — onboarding in progress',
     })
     .select('*')
     .single()
