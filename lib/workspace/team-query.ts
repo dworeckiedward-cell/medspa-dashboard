@@ -25,8 +25,8 @@ export async function listWorkspaceMembers(clientId: string): Promise<WorkspaceM
 
   const { data, error } = await supabase
     .from('user_tenants')
-    .select('id, user_id, client_id, role, created_at')
-    .eq('client_id', clientId)
+    .select('id, user_id, tenant_id, role, created_at')
+    .eq('tenant_id', clientId)
     .order('created_at', { ascending: true })
 
   if (error) {
@@ -47,7 +47,7 @@ export async function listWorkspaceMembers(clientId: string): Promise<WorkspaceM
   return data.map((row) => ({
     id: row.id,
     userId: row.user_id,
-    clientId: row.client_id,
+    clientId: row.tenant_id,
     email: '', // populated by enrichment or scaffold
     displayName: null,
     avatarUrl: null,
@@ -68,8 +68,8 @@ export async function getWorkspaceMember(
 
   const { data, error } = await supabase
     .from('user_tenants')
-    .select('id, user_id, client_id, role, created_at')
-    .eq('client_id', clientId)
+    .select('id, user_id, tenant_id, role, created_at')
+    .eq('tenant_id', clientId)
     .eq('id', memberId)
     .single()
 
@@ -78,7 +78,7 @@ export async function getWorkspaceMember(
   return {
     id: data.id,
     userId: data.user_id,
-    clientId: data.client_id,
+    clientId: data.tenant_id,
     email: '',
     displayName: null,
     avatarUrl: null,
@@ -100,8 +100,8 @@ export async function getUserRole(
 
   const { data, error } = await supabase
     .from('user_tenants')
-    .select('id, user_id, client_id, role, created_at')
-    .eq('client_id', clientId)
+    .select('id, user_id, tenant_id, role, created_at')
+    .eq('tenant_id', clientId)
     .eq('user_id', userId)
     .single()
 
@@ -110,7 +110,7 @@ export async function getUserRole(
   return {
     id: data.id,
     userId: data.user_id,
-    clientId: data.client_id,
+    clientId: data.tenant_id,
     email: '',
     displayName: null,
     avatarUrl: null,

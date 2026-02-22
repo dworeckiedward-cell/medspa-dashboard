@@ -35,7 +35,7 @@ export async function inviteTeammate(
   const { data: existingMember } = await supabase
     .from('user_tenants')
     .select('id')
-    .eq('client_id', clientId)
+    .eq('tenant_id', clientId)
     .ilike('role', '%') // just checking existence
     .limit(100)
 
@@ -104,7 +104,7 @@ export async function removeMember(
   const { data: member, error: fetchError } = await supabase
     .from('user_tenants')
     .select('id, user_id, role')
-    .eq('client_id', clientId)
+    .eq('tenant_id', clientId)
     .eq('id', memberId)
     .single()
 
@@ -117,7 +117,7 @@ export async function removeMember(
     const { count } = await supabase
       .from('user_tenants')
       .select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId)
+      .eq('tenant_id', clientId)
       .eq('role', 'owner')
 
     if ((count ?? 0) <= 1) {
@@ -128,7 +128,7 @@ export async function removeMember(
   const { error } = await supabase
     .from('user_tenants')
     .delete()
-    .eq('client_id', clientId)
+    .eq('tenant_id', clientId)
     .eq('id', memberId)
 
   if (error) {
@@ -161,7 +161,7 @@ export async function changeMemberRole(
   const { data: member, error: fetchError } = await supabase
     .from('user_tenants')
     .select('id, role')
-    .eq('client_id', clientId)
+    .eq('tenant_id', clientId)
     .eq('id', memberId)
     .single()
 
@@ -174,7 +174,7 @@ export async function changeMemberRole(
     const { count } = await supabase
       .from('user_tenants')
       .select('id', { count: 'exact', head: true })
-      .eq('client_id', clientId)
+      .eq('tenant_id', clientId)
       .eq('role', 'owner')
 
     if ((count ?? 0) <= 1) {
@@ -185,7 +185,7 @@ export async function changeMemberRole(
   const { error } = await supabase
     .from('user_tenants')
     .update({ role: newRole })
-    .eq('client_id', clientId)
+    .eq('tenant_id', clientId)
     .eq('id', memberId)
 
   if (error) {

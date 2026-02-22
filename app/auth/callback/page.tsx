@@ -29,7 +29,7 @@ async function resolvePostLoginRedirect(supabase: ReturnType<typeof getSupabaseB
     // Check how many tenants this user has access to
     const { data: memberships } = await supabase
       .from('user_tenants')
-      .select('client_id')
+      .select('tenant_id')
       .eq('user_id', user.id)
 
     const count = memberships?.length ?? 0

@@ -46,15 +46,15 @@ export function SidebarAccountMenu({ tenant }: SidebarAccountMenuProps) {
         // Fetch all tenant memberships for switching (2-step to avoid PostgREST join issues)
         const { data: memberships } = await supabase
           .from('user_tenants')
-          .select('client_id')
+          .select('tenant_id')
           .eq('user_id', user.id)
 
-        const clientIds = (memberships ?? []).map((m) => m.client_id).filter(Boolean)
-        if (clientIds.length > 0) {
+        const tenantIds = (memberships ?? []).map((m) => m.tenant_id).filter(Boolean)
+        if (tenantIds.length > 0) {
           const { data: tenantRows } = await supabase
-            .from('clients')
+            .from('tenants')
             .select('id, name, slug, brand_color, logo_url')
-            .in('id', clientIds)
+            .in('id', tenantIds)
 
           if (tenantRows) {
             const others = (tenantRows as TenantSummary[]).filter((t) => t.id !== tenant.id)

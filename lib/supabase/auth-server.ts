@@ -95,7 +95,7 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
     // Step 2a: Get membership rows (user_tenants)
     const { data: memberships, error: membershipError } = await serviceClient
       .from('user_tenants')
-      .select('client_id, role')
+      .select('tenant_id, role')
       .eq('user_id', user.id)
       .order('created_at', { ascending: true })
 
@@ -108,29 +108,29 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
       return null
     }
 
-    const clientIds = (memberships ?? []).map((m) => m.client_id).filter(Boolean)
-    console.log('[auth] Membership rows:', memberships?.length ?? 0, '| client_ids:', clientIds)
+    const tenantIds = (memberships ?? []).map((m) => m.tenant_id).filter(Boolean)
+    console.log('[auth] Membership rows:', memberships?.length ?? 0, '| tenant_ids:', tenantIds)
 
-    if (clientIds.length === 0) {
+    if (tenantIds.length === 0) {
       console.log('[auth] No tenant memberships for user', user.id)
       return { userId: user.id, email: user.email ?? null, tenants: [] }
     }
 
-    // Step 2b: Fetch actual tenant (client) records by IDs
-    const { data: clientRows, error: clientError } = await serviceClient
-      .from('clients')
+    // Step 2b: Fetch actual tenant records by IDs
+    const { data: tenantRows, error: tenantError } = await serviceClient
+      .from('tenants')
       .select('*')
-      .in('id', clientIds)
+      .in('id', tenantIds)
 
-    if (clientError) {
-      console.warn('[auth] clients query error:', clientError.message)
+    if (tenantError) {
+      console.warn('[auth] tenants query error:', tenantError.message)
       return null
     }
 
     // Merge: preserve membership ordering (created_at ascending from step 2a)
-    const clientMap = new Map((clientRows ?? []).map((c) => [c.id, c]))
-    const tenants: Client[] = clientIds
-      .map((id) => clientMap.get(id) as Client | undefined)
+    const tenantMap = new Map((tenantRows ?? []).map((t) => [t.id, t]))
+    const tenants: Client[] = tenantIds
+      .map((id) => tenantMap.get(id) as Client | undefined)
       .filter((t): t is Client => t != null)
 
     console.log('[auth] Resolved:', tenants.length, 'tenant(s) for user', user.id,

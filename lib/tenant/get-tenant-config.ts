@@ -16,7 +16,7 @@ export async function getTenantBySlug(slug: string): Promise<Client | null> {
   const supabase = createSupabaseServerClient()
 
   const { data, error } = await supabase
-    .from('clients')
+    .from('tenants')
     .select('*')
     .eq('slug', slug)
     .eq('is_active', true)
@@ -36,7 +36,7 @@ export async function getTenantByCustomDomain(domain: string): Promise<Client | 
   const supabase = createSupabaseServerClient()
 
   const { data, error } = await supabase
-    .from('clients')
+    .from('tenants')
     .select('*')
     .eq('custom_domain', domain)
     .eq('is_active', true)
