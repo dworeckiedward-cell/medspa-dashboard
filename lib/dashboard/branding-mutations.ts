@@ -18,7 +18,7 @@ export async function updateClientLogoUrl(
 
   try {
     const { error } = await supabase
-      .from('clients')
+      .from('tenants')
       .update({
         logo_url: logoUrl,
         updated_at: new Date().toISOString(),

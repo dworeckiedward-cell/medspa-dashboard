@@ -21,6 +21,8 @@ import { resolveTenantAccess } from '@/lib/dashboard/resolve-tenant-access'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { updateClientLogoUrl } from '@/lib/dashboard/branding-mutations'
 
+export const dynamic = 'force-dynamic'
+
 const BUCKET_NAME = 'branding-assets'
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2 MB
 const ALLOWED_TYPES = new Set([
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
     .from(BUCKET_NAME)
     .upload(storagePath, fileBuffer, {
       contentType: file.type,
-      upsert: false,
+      upsert: true,
     })
 
   if (uploadError) {

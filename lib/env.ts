@@ -61,6 +61,11 @@ export const env = {
     return process.env.CALL_SUMMARY_WEBHOOK_SECRET ?? ''
   },
 
+  /** Retell API key (server-only — NEVER expose to browser) */
+  get RETELL_API_KEY() {
+    return process.env.RETELL_API_KEY ?? ''
+  },
+
   /** Dev action key for test-delivery route */
   get DEV_ACTION_KEY() {
     return process.env.DEV_ACTION_KEY ?? ''

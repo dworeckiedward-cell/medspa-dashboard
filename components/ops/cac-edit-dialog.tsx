@@ -34,33 +34,23 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
   )
   const [cacSource, setCacSource] = useState<CacSource | null>(clientEconomics.cacSource)
   const [cacNotes, setCacNotes] = useState(clientEconomics.cacNotes ?? '')
-  const [acquiredAt, setAcquiredAt] = useState(
+  const [acquiredDate, setAcquiredDate] = useState(
     clientEconomics.acquiredAt ? clientEconomics.acquiredAt.split('T')[0] : '',
   )
-  const [ltvAmount, setLtvAmount] = useState<string>('')
+  const [ltvAmount, setLtvAmount] = useState<string>(
+    clientEconomics.manualLtvUsd !== null && clientEconomics.ltvMode === 'manual'
+      ? String(clientEconomics.manualLtvUsd)
+      : '',
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // Load existing manual LTV when dialog opens — fetch from financial profile
-  const [ltvLoaded, setLtvLoaded] = useState(false)
-  if (open && !ltvLoaded) {
-    setLtvLoaded(true)
-    fetch(`/api/ops/financials/${clientEconomics.clientId}`)
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data?.profile?.ltvMode === 'manual' && data.profile.ltvManualAmount != null) {
-          setLtvAmount(String(data.profile.ltvManualAmount))
-        }
-      })
-      .catch(() => {})
-  }
 
   const handleSave = async () => {
     setSaving(true)
     setError(null)
 
-    const amount = cacAmount.trim() === '' ? null : parseFloat(cacAmount)
-    if (amount !== null && (isNaN(amount) || amount < 0)) {
+    const cac = cacAmount.trim() === '' ? null : parseFloat(cacAmount)
+    if (cac !== null && (isNaN(cac) || cac < 0)) {
       setError('CAC amount must be a positive number')
       setSaving(false)
       return
@@ -74,38 +64,37 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
     }
 
     try {
-      // Save CAC
-      const cacRes = await fetch(`/api/ops/unit-economics/${clientEconomics.clientId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cacAmount: amount,
-          cacSource: cacSource,
-          cacNotes: cacNotes.trim() || null,
-          acquiredAt: acquiredAt ? new Date(acquiredAt).toISOString() : null,
-        }),
-      })
-
-      if (!cacRes.ok) {
-        const data = await cacRes.json().catch(() => ({}))
-        throw new Error(data.error ?? 'Failed to save CAC')
+      // Single API call for CAC + LTV (both stored in client_unit_economics)
+      const payload = {
+        cacUsd: cac,
+        ltvUsd: ltv,
+        ltvMode: ltv !== null ? 'manual' : 'auto',
+        acquisitionSource: cacSource,
+        acquiredDate: acquiredDate || null,
+        notes: cacNotes.trim() || null,
       }
 
-      // Save LTV to financial profile (if user entered a value or wants to clear it)
-      if (ltv !== null || ltvAmount.trim() === '') {
-        const ltvRes = await fetch(`/api/ops/financials/${clientEconomics.clientId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ltvMode: ltv !== null ? 'manual' : 'auto',
-            ltvManualAmount: ltv,
-          }),
-        })
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[cac-dialog] Saving:', { clientId: clientEconomics.clientId, payload })
+      }
 
-        if (!ltvRes.ok) {
-          const data = await ltvRes.json().catch(() => ({}))
-          throw new Error(data.error ?? 'Failed to save LTV')
-        }
+      const res = await fetch(`/api/ops/unit-economics/${clientEconomics.clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json().catch(() => ({}))
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[cac-dialog] Response:', { status: res.status, data })
+      }
+
+      if (!res.ok) {
+        const detail = data.details
+          ? ` (${JSON.stringify(data.details)})`
+          : ''
+        throw new Error((data.error ?? 'Failed to save') + detail)
       }
 
       onSaved()
@@ -234,8 +223,8 @@ export function CacEditDialog({ open, onOpenChange, clientEconomics, onSaved }: 
             </label>
             <Input
               type="date"
-              value={acquiredAt}
-              onChange={(e) => setAcquiredAt(e.target.value)}
+              value={acquiredDate}
+              onChange={(e) => setAcquiredDate(e.target.value)}
               disabled={saving}
               className="h-9"
             />

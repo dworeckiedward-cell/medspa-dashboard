@@ -143,6 +143,17 @@ export interface CallLog {
   /** 'pending' | 'complete' | 'failed' | 'not_applicable' */
   summary_status: string | null
   summary_updated_at: string | null           // ISO 8601 timestamp
+
+  // ── Fields added in migration 023 (Retell enhancements) ─────────────────
+  from_number: string | null                  // E.164 from number
+  to_number: string | null                    // E.164 to number
+  started_at: string | null                   // ISO 8601 call start
+  ended_at: string | null                     // ISO 8601 call end
+  cost_usd: number | null                     // Retell call cost in USD
+  retell_agent_id: string | null              // Retell agent that handled the call
+  call_status: string | null                  // 'ended' | 'ongoing' | 'error' | 'registered'
+  call_summary_json: Record<string, unknown> | null  // Retell custom_analysis_data
+  disconnect_reason: string | null            // Retell disconnect reason
 }
 
 export interface ServicesCatalog {

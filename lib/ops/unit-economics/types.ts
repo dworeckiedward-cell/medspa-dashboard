@@ -3,6 +3,17 @@
  *
  * Internal financial metrics for Servify operator decision-making.
  * These types must NEVER leak into tenant-facing routes or APIs.
+ *
+ * ── PRODUCTION SCHEMA (client_unit_economics) ───────────────────────────────
+ * tenant_id          uuid (PK, FK → tenants.id)
+ * cac_usd            numeric
+ * ltv_usd            numeric
+ * ltv_mode           text          ('auto' | 'manual')
+ * acquisition_source text
+ * acquired_date      date
+ * notes              text
+ * acquired_at        timestamptz
+ * updated_at         timestamptz
  */
 
 // ── CAC source classification ───────────────────────────────────────────────
@@ -63,16 +74,29 @@ export const PAYBACK_STATUS_COLORS: Record<PaybackStatus, {
   highly_profitable: { bg: 'bg-violet-50 dark:bg-violet-950/30', text: 'text-violet-600 dark:text-violet-400' },
 }
 
-// ── Persisted CAC record (DB shape) ─────────────────────────────────────────
+// ── Persisted row (matches PRODUCTION client_unit_economics table) ──────────
 
+export interface UnitEconomicsRow {
+  tenant_id: string
+  cac_usd: number | null
+  ltv_usd: number | null
+  ltv_mode: string              // 'auto' | 'manual'
+  acquisition_source: string | null
+  acquired_date: string | null  // 'YYYY-MM-DD'
+  notes: string | null
+  acquired_at: string | null    // ISO 8601 timestamptz
+  updated_at: string
+}
+
+/** @deprecated Use UnitEconomicsRow instead. Kept for compatibility with calc.ts consumers. */
 export interface ClientUnitEconomicsRow {
   id: string
   client_id: string
-  cac_amount: number | null       // in dollars (not cents)
+  cac_amount: number | null
   cac_currency: string
   cac_source: CacSource | null
   cac_notes: string | null
-  acquired_at: string | null      // ISO 8601
+  acquired_at: string | null
   created_at: string
   updated_at: string
 }
@@ -91,7 +115,7 @@ export interface ClientUnitEconomics {
   cacNotes: string | null
   acquiredAt: string | null
 
-  // LTV (derived from billing)
+  // LTV (derived from billing or manual)
   totalCollectedLtv: number       // total amount collected from this client
   ltvConfidence: LtvConfidence
   activeMrr: number | null        // current monthly recurring revenue
@@ -99,10 +123,36 @@ export interface ClientUnitEconomics {
   firstPaymentAt: string | null
   lastPaymentAt: string | null
 
+  // Manual LTV override
+  manualLtvUsd: number | null
+  ltvMode: string                 // 'auto' | 'manual'
+
   // Derived ratios
   paybackRatio: number | null     // ltv / cac (null if cac not set or 0)
   paybackStatus: PaybackStatus
   monthsToPayback: number | null  // derived from MRR / CAC (null if data insufficient)
+}
+
+// ── Upsert payload (what the API route receives) ────────────────────────────
+
+export interface UnitEconomicsUpsertPayload {
+  cacUsd?: number | null
+  ltvUsd?: number | null
+  ltvMode?: 'auto' | 'manual'
+  acquisitionSource?: string | null
+  acquiredDate?: string | null  // 'YYYY-MM-DD'
+  notes?: string | null
+}
+
+// ── Legacy types kept for backward compat ───────────────────────────────────
+
+/** @deprecated Use UnitEconomicsUpsertPayload */
+export interface CacUpdatePayload {
+  cacAmount: number | null
+  cacCurrency?: string
+  cacSource?: CacSource | null
+  cacNotes?: string | null
+  acquiredAt?: string | null
 }
 
 // ── Cohort aggregation ──────────────────────────────────────────────────────
@@ -133,14 +183,4 @@ export interface CacSourceRow {
   avgLtvCacRatio: number | null
   recoveredCount: number
   missingCacCount: number
-}
-
-// ── CAC edit payload ────────────────────────────────────────────────────────
-
-export interface CacUpdatePayload {
-  cacAmount: number | null
-  cacCurrency?: string
-  cacSource?: CacSource | null
-  cacNotes?: string | null
-  acquiredAt?: string | null
 }

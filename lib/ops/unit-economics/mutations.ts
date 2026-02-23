@@ -3,77 +3,116 @@
  *
  * Server-only. Uses service-role Supabase client.
  * SECURITY: Only call from ops routes protected by resolveOperatorAccess().
+ *
+ * ── PRODUCTION COLUMN MAPPING ────────────────────────────────────────────────
+ * Table: client_unit_economics
+ * PK:    tenant_id (uuid, FK → tenants.id)
+ * Cols:  cac_usd, ltv_usd, ltv_mode, acquisition_source, acquired_date,
+ *        notes, acquired_at, updated_at
  */
 
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import type { CacUpdatePayload, ClientUnitEconomicsRow } from './types'
+import type { UnitEconomicsRow, UnitEconomicsUpsertPayload } from './types'
+
+export interface UpsertResult {
+  data: UnitEconomicsRow | null
+  error: string | null
+}
 
 /**
- * Upsert CAC data for a client.
+ * Upsert unit economics for a tenant.
  * Creates a new row if none exists, updates if it does.
- * Returns the updated row or null on failure.
+ * Returns { data, error } so the caller can surface real errors.
  */
-export async function upsertClientCac(
-  clientId: string,
-  payload: CacUpdatePayload,
-): Promise<ClientUnitEconomicsRow | null> {
+export async function upsertUnitEconomics(
+  tenantId: string,
+  payload: UnitEconomicsUpsertPayload,
+): Promise<UpsertResult> {
   const supabase = createSupabaseServerClient()
   const now = new Date().toISOString()
 
-  const dbRow = {
-    client_id: clientId,
-    cac_amount: payload.cacAmount,
-    cac_currency: payload.cacCurrency ?? 'USD',
-    cac_source: payload.cacSource ?? null,
-    cac_notes: payload.cacNotes ?? null,
-    acquired_at: payload.acquiredAt ?? null,
+  // Build DB row — only include fields that are explicitly provided
+  const dbRow: Record<string, unknown> = {
+    tenant_id: tenantId,
     updated_at: now,
   }
+
+  if (payload.cacUsd !== undefined) dbRow.cac_usd = payload.cacUsd
+  if (payload.ltvUsd !== undefined) dbRow.ltv_usd = payload.ltvUsd
+  if (payload.ltvMode !== undefined) dbRow.ltv_mode = payload.ltvMode
+  if (payload.acquisitionSource !== undefined) dbRow.acquisition_source = payload.acquisitionSource
+  if (payload.acquiredDate !== undefined) dbRow.acquired_date = payload.acquiredDate
+  if (payload.notes !== undefined) dbRow.notes = payload.notes
 
   try {
     const { data, error } = await supabase
       .from('client_unit_economics')
-      .upsert(
-        { ...dbRow, created_at: now },
-        { onConflict: 'client_id' },
-      )
+      .upsert(dbRow, { onConflict: 'tenant_id' })
       .select('*')
       .single()
 
-    if (error || !data) {
-      console.error('[ops] upsertClientCac error:', error?.message)
-      return null
+    if (error) {
+      console.error('[ops] upsertUnitEconomics error:', error.message, error.details, error.hint)
+      return { data: null, error: error.message }
     }
 
-    return data as unknown as ClientUnitEconomicsRow
+    if (!data) {
+      return { data: null, error: 'Upsert returned no data' }
+    }
+
+    return { data: data as unknown as UnitEconomicsRow, error: null }
   } catch (err) {
-    console.error('[ops] upsertClientCac catch:', err)
-    return null
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[ops] upsertUnitEconomics catch:', msg)
+    return { data: null, error: msg }
   }
 }
 
 /**
- * Clear CAC data for a client (sets amounts to null).
+ * Clear unit economics for a tenant (sets values to null).
  */
-export async function clearClientCac(
-  clientId: string,
-): Promise<boolean> {
+export async function clearUnitEconomics(tenantId: string): Promise<boolean> {
   const supabase = createSupabaseServerClient()
 
   try {
     const { error } = await supabase
       .from('client_unit_economics')
       .update({
-        cac_amount: null,
-        cac_source: null,
-        cac_notes: null,
-        acquired_at: null,
+        cac_usd: null,
+        acquisition_source: null,
+        acquired_date: null,
+        notes: null,
         updated_at: new Date().toISOString(),
       })
-      .eq('client_id', clientId)
+      .eq('tenant_id', tenantId)
 
     return !error
   } catch {
     return false
   }
+}
+
+// ── Legacy exports (backward compatibility) ─────────────────────────────────
+
+export interface UpsertCacResult {
+  data: UnitEconomicsRow | null
+  error: string | null
+}
+
+/** @deprecated Use upsertUnitEconomics instead */
+export async function upsertClientCac(
+  clientId: string,
+  payload: { cacAmount: number | null; cacSource?: string | null; cacNotes?: string | null; acquiredAt?: string | null },
+): Promise<UpsertCacResult> {
+  return upsertUnitEconomics(clientId, {
+    cacUsd: payload.cacAmount,
+    acquisitionSource: payload.cacSource ?? null,
+    notes: payload.cacNotes ?? null,
+    acquiredDate: payload.acquiredAt ? payload.acquiredAt.split('T')[0] : null,
+  })
+}
+
+/** @deprecated Use clearUnitEconomics instead */
+export async function clearClientCac(clientId: string): Promise<boolean> {
+  return clearUnitEconomics(clientId)
 }

@@ -104,15 +104,19 @@ export async function createClinic(
 
   const tenantId = tenant.id
 
-  // 3. Create financial profile (commercials)
+  // 3. Create financial profile (commercials) — graceful if table missing
   if (input.setupFeeAmount || input.retainerAmount) {
-    await upsertFinancialProfile(tenantId, {
-      setupFeeAmount: input.setupFeeAmount ?? null,
-      setupFeeStatus: input.setupFeeAmount ? 'unpaid' : 'not_set',
-      retainerAmount: input.retainerAmount ?? null,
-      retainerStatus: input.retainerAmount ? 'due' : 'not_set',
-      billingNotes: input.notes ?? null,
-    })
+    try {
+      await upsertFinancialProfile(tenantId, {
+        setupFeeAmount: input.setupFeeAmount ?? null,
+        setupFeeStatus: input.setupFeeAmount ? 'unpaid' : 'not_set',
+        retainerAmount: input.retainerAmount ?? null,
+        retainerStatus: input.retainerAmount ? 'due' : 'not_set',
+        billingNotes: input.notes ?? null,
+      })
+    } catch {
+      console.warn('[clinic-creation] Financial profile upsert failed — table may not exist')
+    }
   }
 
   // 4. Create onboarding asset stubs (pending status for prompt generation)

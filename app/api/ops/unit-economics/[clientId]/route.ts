@@ -1,28 +1,41 @@
 /**
- * /api/ops/unit-economics/[clientId] — ops-only CAC management.
+ * /api/ops/unit-economics/[clientId] — ops-only CAC + LTV management.
  *
- * PATCH → upsert CAC data for a specific client
- * DELETE → clear CAC data for a specific client
+ * PATCH → upsert unit economics (CAC, LTV, source, notes, date)
+ * DELETE → clear CAC data
  *
  * Auth: operator-scoped via resolveOperatorAccess().
  * SECURITY: Never expose to tenant routes.
+ *
+ * ── Production columns ────────────────────────────────────────────────────
+ * cac_usd, ltv_usd, ltv_mode, acquisition_source, acquired_date, notes
  */
 
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
-import { upsertClientCac, clearClientCac } from '@/lib/ops/unit-economics/mutations'
+import { upsertUnitEconomics, clearUnitEconomics } from '@/lib/ops/unit-economics/mutations'
 import { logOperatorAction } from '@/lib/ops/audit'
 
 export const dynamic = 'force-dynamic'
 
-// ── PATCH: upsert CAC ──────────────────────────────────────────────────────
+// ── PATCH: upsert unit economics ────────────────────────────────────────────
 
 const PatchSchema = z.object({
-  cacAmount: z.number().min(0).max(999999).nullable(),
-  cacCurrency: z.string().min(3).max(3).optional(),
+  // CAC fields
+  cacUsd: z.number().min(0).max(999999).nullable().optional(),
+  acquisitionSource: z.enum(['ads', 'outbound', 'referral', 'organic', 'mixed', 'other']).nullable().optional(),
+  acquiredDate: z.string().nullable().optional(), // 'YYYY-MM-DD'
+  notes: z.string().max(2000).nullable().optional(),
+
+  // LTV override fields
+  ltvUsd: z.number().min(0).max(9_999_999).nullable().optional(),
+  ltvMode: z.enum(['auto', 'manual']).optional(),
+
+  // Legacy field names (from old dialog) — mapped to new names
+  cacAmount: z.number().min(0).max(999999).nullable().optional(),
   cacSource: z.enum(['ads', 'outbound', 'referral', 'organic', 'mixed', 'other']).nullable().optional(),
-  cacNotes: z.string().max(500).nullable().optional(),
+  cacNotes: z.string().max(2000).nullable().optional(),
   acquiredAt: z.string().nullable().optional(),
 })
 
@@ -47,33 +60,49 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  console.info('[ops] Unit economics PATCH', { clientId, userId: access.userId, payload: body })
+
   const parsed = PatchSchema.safeParse(body)
   if (!parsed.success) {
+    const details = parsed.error.flatten()
+    console.error('[ops] Unit economics validation failed:', details)
     return NextResponse.json(
-      { error: 'Validation failed', details: parsed.error.flatten() },
+      { error: 'Validation failed', details },
       { status: 422 },
     )
   }
 
-  const result = await upsertClientCac(clientId, parsed.data)
+  const d = parsed.data
 
-  if (!result) {
-    return NextResponse.json({ error: 'Failed to save CAC data' }, { status: 500 })
+  // Map legacy field names → production column names
+  const payload = {
+    cacUsd: d.cacUsd ?? d.cacAmount,
+    ltvUsd: d.ltvUsd,
+    ltvMode: d.ltvMode,
+    acquisitionSource: d.acquisitionSource ?? d.cacSource,
+    acquiredDate: d.acquiredDate ?? (d.acquiredAt ? d.acquiredAt.split('T')[0] : undefined),
+    notes: d.notes ?? d.cacNotes,
   }
 
-  // Audit log
+  const result = await upsertUnitEconomics(clientId, payload)
+
+  if (result.error) {
+    console.error('[ops] Unit economics upsert failed:', { clientId, error: result.error })
+    return NextResponse.json(
+      { error: `Failed to save: ${result.error}` },
+      { status: 500 },
+    )
+  }
+
   await logOperatorAction({
     operatorId: access.userId ?? 'unknown',
     operatorEmail: access.email,
     action: 'cac_updated',
     targetClientId: clientId,
-    metadata: {
-      cacAmount: parsed.data.cacAmount,
-      cacSource: parsed.data.cacSource,
-    },
+    metadata: { cacUsd: payload.cacUsd, ltvUsd: payload.ltvUsd },
   })
 
-  return NextResponse.json({ success: true, data: result })
+  return NextResponse.json({ ok: true, data: result.data })
 }
 
 // ── DELETE: clear CAC ───────────────────────────────────────────────────────
@@ -92,10 +121,12 @@ export async function DELETE(
     return NextResponse.json({ error: 'Client ID required' }, { status: 400 })
   }
 
-  const success = await clearClientCac(clientId)
+  console.info('[ops] Unit economics DELETE', { clientId, userId: access.userId })
+
+  const success = await clearUnitEconomics(clientId)
 
   if (!success) {
-    return NextResponse.json({ error: 'Failed to clear CAC data' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to clear data' }, { status: 500 })
   }
 
   await logOperatorAction({
@@ -105,5 +136,5 @@ export async function DELETE(
     targetClientId: clientId,
   })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ ok: true })
 }

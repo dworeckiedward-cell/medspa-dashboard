@@ -169,8 +169,14 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
     if (inboundAgentId.trim()) payload.inboundAgentId = inboundAgentId.trim()
     if (outboundAgentId.trim()) payload.outboundAgentId = outboundAgentId.trim()
     if (notes.trim()) payload.notes = notes.trim()
-    if (setupFeeAmount) payload.setupFeeAmount = parseFloat(setupFeeAmount)
-    if (retainerAmount) payload.retainerAmount = parseFloat(retainerAmount)
+    if (setupFeeAmount) {
+      const parsed = parseFloat(setupFeeAmount)
+      if (!isNaN(parsed)) payload.setupFeeAmount = parsed
+    }
+    if (retainerAmount) {
+      const parsed = parseFloat(retainerAmount)
+      if (!isNaN(parsed)) payload.retainerAmount = parsed
+    }
 
     try {
       const res = await fetch('/api/ops/tenants', {
@@ -182,7 +188,15 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
       const data = await res.json()
 
       if (!res.ok) {
-        throw new Error(data.error ?? 'Failed to create clinic')
+        // Surface field-level details when available
+        let msg = data.error ?? 'Failed to create clinic'
+        if (data.details?.fieldErrors) {
+          const fields = Object.entries(data.details.fieldErrors)
+            .map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`)
+            .join('; ')
+          if (fields) msg += ` — ${fields}`
+        }
+        throw new Error(msg)
       }
 
       setCreatedTenantId(data.tenantId)

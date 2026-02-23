@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, Fragment } from 'react'
 import { format, parseISO } from 'date-fns'
+import Link from 'next/link'
 import {
   Search,
   Phone,
@@ -12,6 +13,9 @@ import {
   AlertCircle,
   ArrowDownLeft,
   ArrowUpRight,
+  Mic,
+  FileText,
+  Brain,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -383,9 +387,13 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
 
                           {/* Title + caller */}
                           <TableCell>
-                            <div className="font-medium text-sm text-[var(--brand-text)] leading-tight">
+                            <Link
+                              href={`/dashboard/call-logs/${log.id}`}
+                              className="font-medium text-sm text-[var(--brand-text)] leading-tight hover:text-[var(--brand-primary)] transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               {log.semantic_title || 'Untitled call'}
-                            </div>
+                            </Link>
                             {(log.caller_name || log.caller_phone) && (
                               <div className="text-xs text-[var(--brand-muted)] mt-0.5">
                                 {log.caller_name && <span>{log.caller_name} · </span>}
@@ -398,20 +406,34 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                                 {log.ai_summary ?? log.summary}
                               </p>
                             )}
-                            {log.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                {log.tags.slice(0, 3).map((tag) => (
-                                  <Badge key={tag} variant="outline" className="text-[10px] py-0 px-1.5">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                                {log.tags.length > 3 && (
-                                  <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-                                    +{log.tags.length - 3}
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
+                            {/* Indicator badges + tags */}
+                            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                              {log.recording_url && (
+                                <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium bg-violet-100 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400" title="Recording available">
+                                  <Mic className="h-2.5 w-2.5" />
+                                </span>
+                              )}
+                              {(log.ai_summary || log.summary) && (
+                                <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium bg-blue-100 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400" title="AI summary available">
+                                  <Brain className="h-2.5 w-2.5" />
+                                </span>
+                              )}
+                              {log.transcript && (
+                                <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium bg-emerald-100 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" title="Transcript available">
+                                  <FileText className="h-2.5 w-2.5" />
+                                </span>
+                              )}
+                              {log.tags.slice(0, 3).map((tag) => (
+                                <Badge key={tag} variant="outline" className="text-[10px] py-0 px-1.5">
+                                  {tag}
+                                </Badge>
+                              ))}
+                              {log.tags.length > 3 && (
+                                <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                                  +{log.tags.length - 3}
+                                </Badge>
+                              )}
+                            </div>
                           </TableCell>
 
                           {/* Call type + direction indicator */}

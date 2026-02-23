@@ -41,6 +41,10 @@ export type AuditAction =
   | 'client_payment_logged'
   | 'clinic_created'
   | 'retell_prompts_generated'
+  | 'retell_backfill'
+  | 'retell_agents_synced'
+  | 'retell_agent_updated'
+  | 'retell_call_refreshed'
 
 export interface AuditEntry {
   operatorId: string

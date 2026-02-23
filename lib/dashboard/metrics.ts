@@ -138,3 +138,28 @@ export async function getCallLogs(
 
   return { data: (data ?? []) as CallLog[], count: count ?? 0 }
 }
+
+/**
+ * Fetch a single call log by ID, scoped to a specific tenant.
+ * Returns null if not found or not authorized.
+ */
+export async function getCallLogById(
+  clientId: string,
+  callLogId: string,
+): Promise<CallLog | null> {
+  const supabase = createSupabaseServerClient()
+
+  const { data, error } = await supabase
+    .from('call_logs')
+    .select('*')
+    .eq('id', callLogId)
+    .eq('client_id', clientId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[metrics] getCallLogById error:', error.message)
+    return null
+  }
+
+  return data as CallLog | null
+}

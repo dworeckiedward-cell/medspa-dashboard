@@ -13,20 +13,58 @@ import { createClinic, type CreateClinicInput } from '@/lib/ops/clinic-creation'
 
 export const dynamic = 'force-dynamic'
 
-const CreateClinicSchema = z.object({
-  name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
-  websiteUrl: z.string().url(),
-  logoUrl: z.string().url().nullable().optional(),
-  primaryContactEmail: z.string().email(),
-  retellPhoneNumber: z.string().max(30).nullable().optional(),
-  inboundAgentId: z.string().max(100).nullable().optional(),
-  outboundAgentId: z.string().max(100).nullable().optional(),
-  notes: z.string().max(2000).nullable().optional(),
-  setupFeeAmount: z.number().min(0).max(999_999).nullable().optional(),
-  retainerAmount: z.number().min(0).max(999_999).nullable().optional(),
-  currency: z.string().length(3).optional(),
-})
+/**
+ * Normalize a URL string — adds https:// if no protocol is present.
+ * This prevents Zod .url() from rejecting bare domains like "glowmedicalspa.com".
+ */
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return trimmed
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return `https://${trimmed}`
+}
+
+const CreateClinicSchema = z
+  .object({
+    name: z.string().min(1, 'Clinic name is required').max(100),
+    slug: z
+      .string()
+      .min(1, 'Slug is required')
+      .max(50)
+      .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
+    websiteUrl: z
+      .string()
+      .min(1, 'Website URL is required')
+      .transform(normalizeUrl)
+      .pipe(z.string().url('Must be a valid URL (e.g. https://example.com)')),
+    logoUrl: z
+      .string()
+      .transform(normalizeUrl)
+      .pipe(z.string().url())
+      .nullable()
+      .optional(),
+    primaryContactEmail: z.string().email('Must be a valid email address'),
+    retellPhoneNumber: z.string().max(30).nullable().optional(),
+    inboundAgentId: z.string().max(100).nullable().optional(),
+    outboundAgentId: z.string().max(100).nullable().optional(),
+    notes: z.string().max(2000).nullable().optional(),
+    setupFeeAmount: z
+      .number()
+      .min(0)
+      .max(999_999)
+      .nullable()
+      .optional()
+      .transform((v) => (v !== null && v !== undefined && isNaN(v) ? null : v)),
+    retainerAmount: z
+      .number()
+      .min(0)
+      .max(999_999)
+      .nullable()
+      .optional()
+      .transform((v) => (v !== null && v !== undefined && isNaN(v) ? null : v)),
+    currency: z.string().length(3).optional(),
+  })
+  .passthrough()
 
 export async function POST(request: Request) {
   const access = await resolveOperatorAccess()
@@ -41,10 +79,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  // Server-side logging for debugging
+  console.info('[ops] Create clinic payload:', body)
+
   const parsed = CreateClinicSchema.safeParse(body)
   if (!parsed.success) {
+    const details = parsed.error.flatten()
+    console.error('[ops] Create clinic validation failed:', details)
     return NextResponse.json(
-      { error: 'Validation failed', details: parsed.error.flatten() },
+      { error: 'Validation failed', details },
       { status: 422 },
     )
   }
@@ -68,7 +111,11 @@ export async function POST(request: Request) {
   const result = await createClinic(input, operatorEmail)
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    console.error('[ops] Create clinic failed:', result.error)
+    return NextResponse.json(
+      { error: result.error ?? 'Failed to create clinic' },
+      { status: 400 },
+    )
   }
 
   // Audit log
@@ -81,7 +128,7 @@ export async function POST(request: Request) {
   }).catch(() => {})
 
   return NextResponse.json({
-    success: true,
+    ok: true,
     tenantId: result.tenantId,
     inviteToken: result.inviteToken,
   })

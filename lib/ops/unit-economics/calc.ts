@@ -3,15 +3,6 @@
  *
  * Pure functions for computing LTV, payback, and derived metrics.
  * No IO, no side effects.
- *
- * LTV CONFIDENCE:
- *   - 'exact': from verified payment records (Stripe events)
- *   - 'derived': from mock billing snapshots (amountCents * months active)
- *   - 'estimated': fallback when no data exists
- *
- * Currently all billing data is scaffolded (mock). LTV is 'derived'
- * from the mock billing amount × months since client creation.
- * When real Stripe integration lands, switch to 'exact'.
  */
 
 import type {
@@ -19,15 +10,13 @@ import type {
   PaybackStatus,
   LtvConfidence,
   ClientUnitEconomicsRow,
+  UnitEconomicsRow,
   CacSource,
 } from './types'
 import type { Client } from '@/types/database'
 
 // ── Mock billing constants ──────────────────────────────────────────────────
-// These mirror the hardcoded values in lib/dashboard/billing.ts
-// TODO: Replace with real per-client billing query when Stripe is connected
-
-const MOCK_MRR_CENTS = 29900 // $299/month — "Growth" plan
+const MOCK_MRR_CENTS = 29900 // $299/month
 const MOCK_MRR = MOCK_MRR_CENTS / 100
 
 // ── LTV computation ─────────────────────────────────────────────────────────
@@ -41,19 +30,7 @@ interface LtvResult {
   lastPaymentAt: string | null
 }
 
-/**
- * Compute LTV for a client from available billing data.
- *
- * Current approach (scaffold):
- *   LTV = MOCK_MRR × months_active
- *   confidence = 'derived'
- *
- * When Stripe is connected:
- *   LTV = sum(successful_payment_amounts)
- *   confidence = 'exact'
- */
 export function computeLtv(client: Client): LtvResult {
-  // Calculate months active since client creation
   const createdAt = new Date(client.created_at)
   const now = new Date()
   const monthsActive = Math.max(
@@ -63,7 +40,6 @@ export function computeLtv(client: Client): LtvResult {
   )
 
   if (!client.is_active) {
-    // Inactive client — LTV stops accumulating
     return {
       totalCollectedLtv: MOCK_MRR * Math.max(1, monthsActive - 1),
       ltvConfidence: 'derived',
@@ -95,7 +71,7 @@ export function computePaybackStatus(ltv: number, cac: number | null): PaybackSt
 
 export function computePaybackRatio(ltv: number, cac: number | null): number | null {
   if (cac === null || cac <= 0) return null
-  return Math.round((ltv / cac) * 100) / 100 // 2 decimal places
+  return Math.round((ltv / cac) * 100) / 100
 }
 
 export function computeMonthsToPayback(mrr: number | null, cac: number | null): number | null {
@@ -108,17 +84,31 @@ export function computeMonthsToPayback(mrr: number | null, cac: number | null): 
 
 /**
  * Build complete unit economics for a client.
- * Merges CAC (from DB) with LTV (computed from billing).
+ * Merges CAC (from DB) with LTV (computed from billing or manual override).
+ *
+ * @param client - The tenant/client record
+ * @param cacRow - Legacy row shape (for backward compat)
+ * @param ueRow  - Production row shape (preferred, includes ltv_usd/ltv_mode)
  */
 export function buildClientUnitEconomics(
   client: Client,
   cacRow: ClientUnitEconomicsRow | null,
+  ueRow?: UnitEconomicsRow | null,
 ): ClientUnitEconomics {
   const ltv = computeLtv(client)
 
-  const cacAmount = cacRow?.cac_amount ?? null
-  const paybackRatio = computePaybackRatio(ltv.totalCollectedLtv, cacAmount)
-  const paybackStatus = computePaybackStatus(ltv.totalCollectedLtv, cacAmount)
+  // Read CAC from production row if available, else from legacy row
+  const cacAmount = ueRow?.cac_usd ?? cacRow?.cac_amount ?? null
+
+  // LTV: prefer manual override from production row, else use computed
+  const manualLtv = ueRow?.ltv_usd ?? null
+  const ltvMode = ueRow?.ltv_mode ?? 'auto'
+  const effectiveLtv = ltvMode === 'manual' && manualLtv !== null
+    ? manualLtv
+    : ltv.totalCollectedLtv
+
+  const paybackRatio = computePaybackRatio(effectiveLtv, cacAmount)
+  const paybackStatus = computePaybackStatus(effectiveLtv, cacAmount)
   const monthsToPayback = computeMonthsToPayback(ltv.activeMrr, cacAmount)
 
   return {
@@ -127,12 +117,15 @@ export function buildClientUnitEconomics(
     clientSlug: client.slug,
 
     cacAmount,
-    cacCurrency: cacRow?.cac_currency ?? 'USD',
-    cacSource: (cacRow?.cac_source as CacSource) ?? null,
-    cacNotes: cacRow?.cac_notes ?? null,
-    acquiredAt: cacRow?.acquired_at ?? null,
+    cacCurrency: 'USD',
+    cacSource: (ueRow?.acquisition_source ?? cacRow?.cac_source ?? null) as CacSource | null,
+    cacNotes: ueRow?.notes ?? cacRow?.cac_notes ?? null,
+    acquiredAt: ueRow?.acquired_date ?? ueRow?.acquired_at ?? cacRow?.acquired_at ?? null,
 
     ...ltv,
+
+    manualLtvUsd: manualLtv,
+    ltvMode,
 
     paybackRatio,
     paybackStatus,
