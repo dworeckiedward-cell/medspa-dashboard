@@ -51,7 +51,17 @@ export const env = {
     return optionalEnv('NEXT_PUBLIC_APP_DOMAIN', 'lvh.me')
   },
 
-  /** Webhook API key for /api/retell/webhook */
+  /** Retell webhook secret (primary auth for /api/retell/webhook) */
+  get RETELL_WEBHOOK_SECRET() {
+    return process.env.RETELL_WEBHOOK_SECRET ?? ''
+  },
+
+  /** OPS server-to-server key (primary auth for /api/ops/* curl calls) */
+  get OPS_WEBHOOK_SECRET() {
+    return process.env.OPS_WEBHOOK_SECRET ?? ''
+  },
+
+  /** Generic webhook API key (fallback for /api/retell/webhook and /api/ops/* if dedicated secrets not set) */
   get WEBHOOK_API_KEY() {
     return process.env.WEBHOOK_API_KEY ?? ''
   },

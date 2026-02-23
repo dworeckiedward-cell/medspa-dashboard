@@ -111,6 +111,15 @@ async function resolveTenantId(
 
 // ── Normalize Retell call → DB row ─────────────────────────────────────────
 
+/**
+ * Normalize a Retell payload into a call_logs DB row.
+ *
+ * IMPORTANT: Only write columns confirmed to exist in production call_logs.
+ * Migration-023 columns (from_number, to_number, started_at, ended_at,
+ * cost_usd, retell_agent_id, call_status, call_summary_json, disconnect_reason)
+ * may not exist — do NOT include them. The full Retell payload is stored in
+ * raw_payload so values can be derived at read-time.
+ */
 function normalizeCallToRow(payload: Obj, tenantId: string): Obj {
   const meta = (payload.metadata ?? {}) as Obj
   const analysis = (payload.call_analysis ?? {}) as Obj
@@ -120,35 +129,32 @@ function normalizeCallToRow(payload: Obj, tenantId: string): Obj {
   const durationMs = typeof payload.duration_ms === 'number' ? payload.duration_ms : null
   const durationSec = durationMs ? Math.round(durationMs / 1000) : (endMs && startMs ? Math.round((endMs - startMs) / 1000) : null)
 
-  // Cost: Retell may include cost or we derive later
-  const costUsd = typeof payload.cost === 'number' ? payload.cost : null
-
   return {
+    // ── Core identifiers ──────────────────────────────────────────────
     client_id: tenantId,
     external_call_id: str(payload, 'call_id', 'retell_call_id') ?? null,
-    retell_agent_id: str(payload, 'agent_id') ?? null,
+
+    // ── Agent info (safe production columns) ──────────────────────────
     agent_name: str(payload, 'agent_name') ?? str(meta, 'agent_name') ?? null,
     agent_provider: 'retell',
-    call_status: str(payload, 'call_status', 'status') ?? null,
+
+    // ── Call metadata ─────────────────────────────────────────────────
     direction: str(payload, 'direction') ?? str(meta, 'direction') ?? null,
-    from_number: str(payload, 'from_number') ?? null,
-    to_number: str(payload, 'to_number') ?? null,
     caller_phone: str(payload, 'from_number') ?? null,
-    started_at: startMs ? new Date(startMs).toISOString() : null,
-    ended_at: endMs ? new Date(endMs).toISOString() : null,
+    caller_name: str(meta, 'caller_name') ?? null,
+    contacted_at: startMs ? new Date(startMs).toISOString() : null,
     duration_seconds: durationSec ?? 0,
-    cost_usd: costUsd,
+
+    // ── Content ───────────────────────────────────────────────────────
     recording_url: str(payload, 'recording_url') || null,
     summary: str(analysis, 'call_summary') ?? str(payload, 'call_summary') ?? null,
     ai_summary: str(analysis, 'call_summary') ?? null,
     transcript: str(payload, 'transcript') ?? null,
-    call_summary_json: analysis.custom_analysis_data ?? analysis ?? null,
-    ai_summary_json: analysis.custom_analysis_data ?? null,
+    ai_summary_json: analysis.custom_analysis_data ?? (Object.keys(analysis).length > 0 ? analysis : null),
     raw_payload: payload,
-    disconnect_reason: str(payload, 'disconnect_reason') ?? null,
-    // Metadata fields
+
+    // ── Classification / outcome (from metadata or analysis) ─────────
     semantic_title: str(meta, 'semantic_title') ?? null,
-    caller_name: str(meta, 'caller_name') ?? null,
     call_type: str(meta, 'call_type') ?? str(payload, 'call_type') ?? 'other',
     is_booked: meta.is_booked === true,
     is_lead: meta.is_lead === true,
@@ -158,6 +164,7 @@ function normalizeCallToRow(payload: Obj, tenantId: string): Obj {
     disposition: str(meta, 'disposition') ?? null,
     sentiment: str(meta, 'sentiment') ?? null,
     intent: str(meta, 'intent') ?? null,
+
     updated_at: new Date().toISOString(),
   }
 }
@@ -188,6 +195,35 @@ export async function handleRetellWebhook(
   if (!tenantId) {
     debug('Could not resolve tenant for payload')
     return { ok: false, retellCallId, eventType, error: 'Could not resolve tenant' }
+  }
+
+  // Handle "test" events with a minimal row
+  if (eventType === 'test' || eventType === 'ping') {
+    const now = new Date().toISOString()
+    const testRow = {
+      client_id: tenantId,
+      external_call_id: `test-${Date.now()}`,
+      agent_provider: 'retell',
+      contacted_at: now,
+      duration_seconds: 0,
+      call_type: 'other',
+      ai_summary_json: obj,
+      raw_payload: obj,
+      created_at: now,
+      updated_at: now,
+    }
+
+    const { data, error } = await supabase
+      .from('call_logs')
+      .insert(testRow)
+      .select('id')
+      .single()
+
+    if (error) {
+      debug('Test insert error:', error.message)
+      return { ok: false, retellCallId, tenantId, eventType, error: error.message }
+    }
+    return { ok: true, retellCallId, tenantId, callLogId: data.id, eventType }
   }
 
   // Normalize to DB row

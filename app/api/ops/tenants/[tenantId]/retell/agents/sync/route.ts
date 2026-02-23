@@ -1,27 +1,60 @@
 /**
  * POST /api/ops/tenants/[tenantId]/retell/agents/sync
  *
- * Operator-only. Pulls all agents from Retell API, matches them to the
- * tenant, and upserts into tenant_retell_agents mapping table.
+ * Pulls all agents from Retell API, matches them to the tenant, and upserts
+ * into tenant_retell_agents mapping table.
  *
- * This allows the webhook ingest to resolve tenant by agent_id.
+ * Auth (two paths):
+ *   1. Operator session (resolveOperatorAccess)
+ *   2. Server key header (x-ops-key / Authorization: Bearer)
  */
 
 import { NextResponse } from 'next/server'
 import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
+import { verifyOpsServerKey } from '@/lib/ops/server-key-auth'
 import { logOperatorAction } from '@/lib/ops/audit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { listAgents } from '@/lib/retell/api'
 
 export const dynamic = 'force-dynamic'
 
+const DEBUG = process.env.DEBUG_OPS === 'true'
+
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ tenantId: string }> },
 ) {
+  // ── Auth: operator session (primary) ────────────────────────────────────
   const access = await resolveOperatorAccess()
-  if (!access.authorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+  let authMethod: 'operator' | 'serverkey' | null = null
+  let operatorId = 'unknown'
+  let operatorEmail: string | null = null
+
+  if (access.authorized) {
+    authMethod = 'operator'
+    operatorId = access.userId ?? 'unknown'
+    operatorEmail = access.email
+  } else {
+    // ── Auth: server key (secondary) ────────────────────────────────────
+    const keyResult = verifyOpsServerKey(request, 'agents/sync')
+    if (keyResult.missingSecret) {
+      return NextResponse.json(
+        { error: 'Server misconfiguration: OPS_WEBHOOK_SECRET is not set' },
+        { status: 500 },
+      )
+    }
+    if (keyResult.valid) {
+      authMethod = 'serverkey'
+      operatorId = 'server-key'
+    }
+  }
+
+  if (DEBUG) {
+    console.log(`[ops-auth] route=agents/sync auth=${authMethod ?? 'none'} ok=${!!authMethod}`)
+  }
+
+  if (!authMethod) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const { tenantId } = await params
@@ -76,11 +109,11 @@ export async function POST(
 
     // Audit log
     logOperatorAction({
-      operatorId: access.userId ?? 'unknown',
-      operatorEmail: access.email,
+      operatorId,
+      operatorEmail,
       action: 'retell_agents_synced',
       targetClientId: tenantId,
-      metadata: { totalAgents: agents.length, synced, errors },
+      metadata: { totalAgents: agents.length, synced, errors, authMethod },
     }).catch(() => {})
 
     return NextResponse.json({

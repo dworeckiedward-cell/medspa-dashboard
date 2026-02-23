@@ -13,11 +13,12 @@ import {
   Copy,
   Check,
   Download,
-  Play,
   FileText,
   Brain,
   Code,
   Mic,
+  TrendingUp,
+  AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { CallLog } from '@/types/database'
@@ -27,7 +28,10 @@ interface CallDetailViewProps {
   callLog: CallLog
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function formatDuration(seconds: number): string {
+  if (!seconds || seconds <= 0) return '0s'
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
   return m > 0 ? `${m}m ${s}s` : `${s}s`
@@ -44,17 +48,57 @@ function formatDate(iso: string | null): string {
   })
 }
 
-function StatusPill({ status }: { status: string | null }) {
-  const s = status ?? 'unknown'
-  const colors: Record<string, string> = {
-    ended: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400',
-    ongoing: 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400',
-    error: 'bg-red-100 text-red-700 dark:bg-red-950/30 dark:text-red-400',
-    registered: 'bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
+function formatCurrency(cents: number | null | undefined): string {
+  if (cents === null || cents === undefined) return '—'
+  return `$${cents.toLocaleString()}`
+}
+
+function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${Math.round(value * 100)}%`
+}
+
+/** Derive agent name from available fields, falling back to raw_payload. */
+function deriveAgentName(c: CallLog): string {
+  if (c.agent_name) return c.agent_name
+  // Try migration-023 field if it exists at runtime
+  const retellId = (c as unknown as Record<string, unknown>).retell_agent_id as string | undefined
+  if (retellId) return retellId
+  const raw = c.raw_payload as Record<string, unknown> | null
+  if (raw?.agent_id && typeof raw.agent_id === 'string') return raw.agent_id
+  return 'Unknown'
+}
+
+/** Derive cost from available fields, falling back to raw_payload. */
+function deriveCost(c: CallLog): string {
+  // Try migration-023 field if it exists at runtime
+  const costField = (c as unknown as Record<string, unknown>).cost_usd as number | null | undefined
+  if (costField !== null && costField !== undefined) return `$${costField.toFixed(4)}`
+  const raw = c.raw_payload as Record<string, unknown> | null
+  if (raw?.cost && typeof raw.cost === 'number') return `$${raw.cost.toFixed(4)}`
+  return '—'
+}
+
+// ── Status pill — based on call outcome, not Retell call_status ─────────────
+
+function OutcomePill({ callLog }: { callLog: CallLog }) {
+  if (callLog.is_booked) {
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+        Booked
+      </span>
+    )
+  }
+  if (callLog.is_lead) {
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
+        Lead
+      </span>
+    )
   }
   return (
-    <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium', colors[s] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400')}>
-      {s.charAt(0).toUpperCase() + s.slice(1)}
+    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+      Completed
     </span>
   )
 }
@@ -79,23 +123,31 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
   )
 }
 
+// ── Main component ──────────────────────────────────────────────────────────
+
 export function CallDetailView({ callLog }: CallDetailViewProps) {
   const [activeTab, setActiveTab] = useState<'transcript' | 'raw'>('transcript')
 
   const c = callLog
-  const startTime = c.started_at ?? c.created_at
-  const endTime = c.ended_at
-  const costUsd = c.cost_usd
-  const retellAgentId = c.retell_agent_id
-  const callStatus = c.call_status
-  const fromNumber = c.from_number ?? c.caller_phone
-  const toNumber = c.to_number
-  const callSummaryJson = c.call_summary_json
-  const disconnectReason = c.disconnect_reason
+
+  // Safe field mappings — prefer production columns, fall back gracefully
+  const startTime = c.contacted_at ?? c.created_at
+  const callerPhone = c.caller_phone
+  const summaryText = c.ai_summary ?? c.summary
+
+  // Infer end time from contacted_at + duration_seconds (if possible)
+  const endTimeEstimate = (() => {
+    if (!startTime || !c.duration_seconds) return null
+    try {
+      return new Date(new Date(startTime).getTime() + c.duration_seconds * 1000).toISOString()
+    } catch {
+      return null
+    }
+  })()
 
   return (
     <div className="p-4 sm:p-6 space-y-4 animate-fade-in max-w-4xl">
-      {/* Header */}
+      {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3">
         <Link
           href="/dashboard/call-logs"
@@ -103,12 +155,12 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
         >
           <ArrowLeft className="h-4 w-4 text-[var(--brand-muted)]" />
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-lg font-semibold text-[var(--brand-text)]">
               {c.semantic_title ?? 'Call Details'}
             </h1>
-            <StatusPill status={callStatus ?? (c.disposition ? 'ended' : null)} />
+            <OutcomePill callLog={c} />
             {c.direction && (
               <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--brand-muted)]">
                 {c.direction === 'inbound' ? <PhoneIncoming className="h-3 w-3" /> : <PhoneOutgoing className="h-3 w-3" />}
@@ -117,41 +169,43 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
             )}
           </div>
           <p className="text-xs text-[var(--brand-muted)] mt-0.5">
-            {formatDate(startTime)}
+            {callerPhone ?? 'Unknown caller'}
             {c.caller_name && ` · ${c.caller_name}`}
           </p>
         </div>
       </div>
 
-      {/* KPI Strip */}
+      {/* ── KPI Strip ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <KpiCard icon={Clock} label="Duration" value={formatDuration(c.duration_seconds)} />
-        <KpiCard icon={DollarSign} label="Cost" value={costUsd !== null ? `$${costUsd.toFixed(4)}` : '—'} />
+        <KpiCard icon={DollarSign} label="Cost" value={deriveCost(c)} />
         <KpiCard
           icon={c.direction === 'outbound' ? PhoneOutgoing : PhoneIncoming}
           label="Direction"
-          value={c.direction ?? '—'}
+          value={c.direction ? c.direction.charAt(0).toUpperCase() + c.direction.slice(1) : '—'}
         />
-        <KpiCard icon={Bot} label="Agent" value={c.agent_name ?? retellAgentId ?? '—'} />
+        <KpiCard icon={Bot} label="Agent" value={deriveAgentName(c)} />
       </div>
 
-      {/* Call Information */}
+      {/* ── Call Information ──────────────────────────────────────────────── */}
       <Card title="Call Information" icon={Phone}>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-          <InfoRow label="Started" value={formatDate(startTime)} />
-          <InfoRow label="Ended" value={formatDate(endTime)} />
-          <InfoRow label="From" value={fromNumber ?? '—'} mono />
-          <InfoRow label="To" value={toNumber ?? '—'} mono />
-          <InfoRow label="Retell Call ID" value={c.external_call_id ?? '—'} mono />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+          <InfoRow label="Started At" value={formatDate(startTime)} />
+          <InfoRow
+            label="Ended At"
+            value={endTimeEstimate ? `${formatDate(endTimeEstimate)} (est.)` : '—'}
+          />
+          <InfoRow label="Phone Number" value={callerPhone ?? '—'} mono />
+          <InfoRow label="Call ID" value={c.external_call_id ?? '—'} mono />
           <InfoRow label="Disposition" value={c.disposition ? CALL_DISPOSITION_LABELS[c.disposition] ?? c.disposition : '—'} />
           <InfoRow label="Intent" value={c.intent ? CALL_INTENT_LABELS[c.intent] ?? c.intent : '—'} />
-          <InfoRow label="Sentiment" value={c.sentiment ?? '—'} />
-          {disconnectReason && <InfoRow label="Disconnect" value={disconnectReason} />}
+          <InfoRow label="Sentiment" value={c.sentiment ? c.sentiment.charAt(0).toUpperCase() + c.sentiment.slice(1) : '—'} />
+          <InfoRow label="Agent Provider" value={c.agent_provider ?? '—'} />
         </div>
       </Card>
 
-      {/* Recording */}
-      <Card title="Recording" icon={Mic}>
+      {/* ── Recording ────────────────────────────────────────────────────── */}
+      <Card title="Call Recording" icon={Mic}>
         {c.recording_url ? (
           <div className="space-y-3">
             <audio controls preload="metadata" className="w-full h-10">
@@ -164,7 +218,7 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              Download recording
+              Download Recording
             </a>
           </div>
         ) : (
@@ -174,75 +228,104 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
         )}
       </Card>
 
-      {/* Call Analysis */}
-      <Card title="Call Analysis" icon={Brain}>
-        {/* Summary */}
-        {(c.ai_summary || c.summary) ? (
+      {/* ── AI Summary ───────────────────────────────────────────────────── */}
+      <Card title="AI Summary" icon={Brain}>
+        {summaryText ? (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-medium text-[var(--brand-muted)] uppercase tracking-wider">
                 Summary
               </p>
-              <CopyButton text={c.ai_summary ?? c.summary ?? ''} />
+              <CopyButton text={summaryText} />
             </div>
             <p className="text-xs text-[var(--brand-text)] leading-relaxed whitespace-pre-wrap">
-              {c.ai_summary ?? c.summary}
+              {summaryText}
             </p>
           </div>
         ) : (
           <p className="text-xs text-[var(--brand-muted)] italic">No AI summary available.</p>
         )}
+      </Card>
 
-        {/* Tabs */}
-        <div className="mt-4 border-t border-[var(--brand-border)] pt-3">
-          <div className="flex gap-1 mb-3">
-            <TabButton
-              active={activeTab === 'transcript'}
-              icon={FileText}
-              label="Transcript"
-              onClick={() => setActiveTab('transcript')}
-            />
-            <TabButton
-              active={activeTab === 'raw'}
-              icon={Code}
-              label="Raw JSON"
-              onClick={() => setActiveTab('raw')}
-            />
-          </div>
+      {/* ── Outcome ──────────────────────────────────────────────────────── */}
+      <Card title="Outcome" icon={TrendingUp}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <OutcomeStat label="Booked Value" value={formatCurrency(c.booked_value)} />
+          <OutcomeStat label="Potential Revenue" value={formatCurrency(c.potential_revenue)} />
+          <OutcomeStat label="Lead Confidence" value={formatPercent(c.lead_confidence)} />
+        </div>
 
-          {activeTab === 'transcript' && (
-            <div className="space-y-2">
-              {c.transcript ? (
-                <>
-                  <div className="flex justify-end">
-                    <CopyButton text={c.transcript} label="Copy transcript" />
-                  </div>
-                  <pre className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-xs text-[var(--brand-text)] whitespace-pre-wrap max-h-96 overflow-y-auto font-mono leading-relaxed">
-                    {c.transcript}
-                  </pre>
-                </>
-              ) : (
-                <p className="text-xs text-[var(--brand-muted)] italic">
-                  No transcript available.
+        {c.human_followup_needed && (
+          <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                Human follow-up needed
+              </p>
+              {c.human_followup_reason && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-0.5">
+                  {c.human_followup_reason}
                 </p>
               )}
             </div>
-          )}
+          </div>
+        )}
+      </Card>
 
-          {activeTab === 'raw' && (
-            <div className="space-y-2">
-              <div className="flex justify-end">
-                <CopyButton
-                  text={JSON.stringify(callSummaryJson ?? c.ai_summary_json ?? c.raw_payload ?? {}, null, 2)}
-                  label="Copy JSON"
-                />
-              </div>
-              <pre className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-[10px] text-[var(--brand-muted)] whitespace-pre-wrap max-h-96 overflow-y-auto font-mono">
-                {JSON.stringify(callSummaryJson ?? c.ai_summary_json ?? c.raw_payload ?? {}, null, 2)}
-              </pre>
-            </div>
-          )}
+      {/* ── Transcript / Raw ─────────────────────────────────────────────── */}
+      <Card title="Transcript" icon={FileText}>
+        <div className="flex gap-1 mb-3">
+          <TabButton
+            active={activeTab === 'transcript'}
+            icon={FileText}
+            label="Transcript"
+            onClick={() => setActiveTab('transcript')}
+          />
+          <TabButton
+            active={activeTab === 'raw'}
+            icon={Code}
+            label="Raw"
+            onClick={() => setActiveTab('raw')}
+          />
         </div>
+
+        {activeTab === 'transcript' && (
+          <div className="space-y-2">
+            {c.transcript ? (
+              <>
+                <div className="flex justify-end">
+                  <CopyButton text={c.transcript} label="Copy transcript" />
+                </div>
+                <pre className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-xs text-[var(--brand-text)] whitespace-pre-wrap max-h-96 overflow-y-auto font-mono leading-relaxed">
+                  {c.transcript}
+                </pre>
+              </>
+            ) : (
+              <p className="text-xs text-[var(--brand-muted)] italic">
+                No transcript available.
+              </p>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'raw' && (
+          <div className="space-y-2">
+            {(() => {
+              const rawJson = c.ai_summary_json ?? c.raw_payload ?? {}
+              const rawStr = JSON.stringify(rawJson, null, 2)
+              return (
+                <>
+                  <div className="flex justify-end">
+                    <CopyButton text={rawStr} label="Copy JSON" />
+                  </div>
+                  <pre className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-[10px] text-[var(--brand-muted)] whitespace-pre-wrap max-h-96 overflow-y-auto font-mono">
+                    {rawStr}
+                  </pre>
+                </>
+              )
+            })()}
+          </div>
+        )}
       </Card>
     </div>
   )
@@ -258,6 +341,15 @@ function KpiCard({ icon: Icon, label, value }: { icon: React.ElementType; label:
         <span className="text-[10px] font-medium text-[var(--brand-muted)] uppercase tracking-wider">{label}</span>
       </div>
       <p className="text-sm font-semibold text-[var(--brand-text)] tabular-nums truncate">{value}</p>
+    </div>
+  )
+}
+
+function OutcomeStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-medium text-[var(--brand-muted)] uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-sm font-semibold text-[var(--brand-text)] tabular-nums">{value}</p>
     </div>
   )
 }
