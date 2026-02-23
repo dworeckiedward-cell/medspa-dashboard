@@ -154,7 +154,7 @@ export default async function OpsConsolePage() {
 
       {/* ── Content with sidebar ────────────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex gap-6">
-        <OpsSidebarNav />
+        <OpsSidebarNav email={access.email} />
 
         <div className="min-w-0 flex-1 space-y-4 sm:space-y-6">
           {/* 1. KPI strip */}
