@@ -1,6 +1,6 @@
-# MedSpa Dashboard — AI Receptionist White-Label Platform
+# Servify Dashboard — AI Voice Agent White-Label Platform
 
-A **production-grade multi-tenant white-label dashboard** for the "Sarah" AI MedSpa Receptionist SaaS.
+A **production-grade multi-tenant white-label dashboard** for AI Voice Agent SaaS across multiple verticals (clinics, outbound re-engagement, FB Ads leads).
 
 **One codebase. New client = one row in Supabase.**
 

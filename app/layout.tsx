@@ -1,15 +1,14 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
 import { headers } from 'next/headers'
 import './globals.css'
 import { getTenantBySlug, getTenantByCustomDomain } from '@/lib/tenant/get-tenant-config'
+import { NavProgressBar } from '@/components/dashboard/nav-progress'
 import type { Client } from '@/types/database'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
-
 export const metadata: Metadata = {
-  title: 'MedSpa Dashboard',
-  description: 'AI Receptionist Performance Dashboard',
+  title: 'Servify Dashboard',
+  description: 'AI Voice Agent Performance Dashboard',
 }
 
 /**
@@ -48,13 +47,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // primary/accent are constant across themes; structural palette switches.
   // --user-accent* are user-overridable accent vars (default blue); the
   // blocking accentScript below overwrites them immediately from localStorage.
+  // Light theme uses zinc palette; dark theme uses near-black zinc
   const themeCSS =
     `:root{--brand-primary:${brandColor};--brand-accent:${accentColor};` +
-    `--brand-bg:#F8FAFC;--brand-surface:#FFFFFF;--brand-border:#E4E4E7;` +
-    `--brand-text:#0A0A0B;--brand-muted:#6B7280;` +
+    `--brand-bg:#fafafa;--brand-surface:#ffffff;--brand-border:#e4e4e7;` +
+    `--brand-text:#09090b;--brand-muted:#71717a;` +
     `--user-accent:#2563EB;--user-accent-soft:rgba(37,99,235,0.12);--user-accent-ring:rgba(37,99,235,0.4)}` +
     `.dark{--brand-bg:#0A0A0F;--brand-surface:#12121A;--brand-border:#1E1E2E;` +
-    `--brand-text:#E2E8F0;--brand-muted:#64748B}`
+    `--brand-text:#f0f0f5;--brand-muted:#71717a}`
 
   // Blocking script: runs before React hydration to apply dark class immediately.
   // Prevents a flash when user's localStorage preference differs from tenant default.
@@ -105,8 +105,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: customThemeScript }} />
       </head>
       <body
-        className={`${inter.variable} font-sans bg-[var(--brand-bg)] text-[var(--brand-text)] antialiased`}
+        className={`${GeistSans.className} bg-[var(--brand-bg)] text-[var(--brand-text)] antialiased`}
       >
+        <NavProgressBar />
         {children}
       </body>
     </html>

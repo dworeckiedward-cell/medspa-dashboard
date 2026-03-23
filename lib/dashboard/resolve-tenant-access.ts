@@ -49,10 +49,9 @@ export interface TenantAccessResult {
  *
  *   A. Supabase Auth session (cookie) → user_tenants → tenant
  *      Sub-cases:
- *        A1. 1 tenant     → return it directly
- *        A2. >1 tenants + slug in URL/header that matches one → return that tenant
- *        A3. >1 tenants + no slug                             → needsTenantSelection
- *        A4. 0 tenants   → tenant = null, no_workspace UX
+ *        A1/A2. >= 1 tenant + ?tenant= slug → return matched tenant
+ *        A3. >= 1 tenant + no slug          → needsTenantSelection (picker)
+ *        A4. 0 tenants                      → tenant = null, no_workspace UX
  *      Fails safe: any error falls through to path B.
  *
  *   B. Middleware-injected slug (demo / dev / subdomain)
@@ -71,6 +70,7 @@ export async function resolveTenantAccess(): Promise<TenantAccessResult> {
   // Read middleware-injected slug early — needed for both auth and demo paths.
   const headersList = headers()
   const slug = headersList.get('x-tenant-slug') ?? ''
+  const slugSource = headersList.get('x-tenant-source') ?? ''
 
   // ── A. Authenticated path (Supabase Auth + user_tenants) ─────────────────
   const authResult = await getAuthenticatedUser()
@@ -85,29 +85,17 @@ export async function resolveTenantAccess(): Promise<TenantAccessResult> {
   if (authResult !== null) {
     const { userId, tenants } = authResult
 
-    // A1. Exactly one tenant — happy path
-    if (tenants.length === 1) {
-      console.log('[tenant-access] A1: Single tenant →', tenants[0].slug)
-      return {
-        tenant: tenants[0],
-        accessMode: 'authenticated',
-        userId,
-        tenantSlug: tenants[0].slug,
-        needsTenantSelection: false,
-      }
-    }
-
-    // A2/A3. Multiple tenants
-    if (tenants.length > 1) {
-      // If a slug was provided (via ?tenant= query param or subdomain),
-      // check if it matches one of the user's assigned tenants.
-      // This allows direct access via URL without going through the picker.
-      if (slug) {
+    // A1/A2. User has >= 1 tenant — always require explicit ?tenant= slug.
+    // Even single-tenant users go through the workspace picker after login.
+    // The only way to resolve a tenant is via ?tenant= query param (set by
+    // the "Preparing workspace" route after the user clicks a workspace).
+    if (tenants.length >= 1) {
+      if (slug && (slugSource === 'query_param' || slugSource === 'cookie')) {
         const matched = tenants.find(
           (t) => t.slug.toLowerCase() === slug.toLowerCase(),
         )
         if (matched) {
-          console.log('[tenant-access] A2: Multi-tenant, slug matched →', matched.slug)
+          console.log('[tenant-access] A2: Slug matched →', matched.slug)
           return {
             tenant: matched,
             accessMode: 'authenticated',
@@ -119,8 +107,8 @@ export async function resolveTenantAccess(): Promise<TenantAccessResult> {
         console.log('[tenant-access] A2: Slug', slug, 'did not match any assigned tenant')
       }
 
-      // No slug or slug didn't match — user must pick one
-      console.log('[tenant-access] A3: Multi-tenant, no match → picker')
+      // No slug or slug didn't match — user must pick
+      console.log('[tenant-access] A3: Tenant selection required →', tenants.length, 'tenant(s)')
       return {
         tenant: null,
         accessMode: 'authenticated',

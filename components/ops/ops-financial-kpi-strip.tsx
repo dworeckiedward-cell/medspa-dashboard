@@ -25,7 +25,7 @@ function KpiCard({
   valueColor?: string
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 min-w-[160px]">
+    <div className="flex items-center gap-3 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 min-w-[160px]">
       <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', iconColor)}>
         <Icon className="h-4 w-4" />
       </div>

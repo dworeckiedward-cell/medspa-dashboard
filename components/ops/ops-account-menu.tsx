@@ -70,7 +70,7 @@ export function OpsAccountMenu({ email }: OpsAccountMenuProps) {
         const tenantIds = (memberships ?? []).map((m) => m.tenant_id).filter(Boolean)
         if (tenantIds.length > 0) {
           const { data: tenantRows } = await supabase
-            .from('tenants')
+            .from('clients')
             .select('id, name, slug, brand_color, logo_url, is_active')
             .in('id', tenantIds)
             .order('name')
@@ -169,7 +169,7 @@ export function OpsAccountMenu({ email }: OpsAccountMenuProps) {
             <p className="text-[11px] text-[var(--brand-muted)] truncate">
               {email ?? 'Signed in'}
             </p>
-            <p className="text-[10px] text-violet-500 dark:text-violet-400 font-medium mt-0.5">
+            <p className="text-[10px] text-[#818cf8] font-medium mt-0.5">
               Operator
             </p>
           </div>
@@ -310,7 +310,7 @@ export function OpsAccountMenu({ email }: OpsAccountMenuProps) {
             )}
           </div>
         ) : (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-100 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[#6366f1]/10 text-[#818cf8]">
             <Building2 className="h-3.5 w-3.5" />
           </div>
         )}

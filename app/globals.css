@@ -24,7 +24,7 @@
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 221.2 83.2% 53.3%;
-    --radius: 0.625rem;
+    --radius: 0.75rem; /* 12px — card border radius */
 
     /* ── Servify Light — brand var fallbacks ─────────────────────────────────
      * Overridden per-request in app/layout.tsx from the tenant's `clients` row.
@@ -121,6 +121,14 @@
   animation: loader-shimmer 2.8s ease-in-out infinite 1s;
 }
 
+@keyframes loader-bar-shimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(200%);  }
+}
+.loader-bar-shimmer {
+  animation: loader-bar-shimmer 1.8s ease-in-out infinite;
+}
+
 /* ── Login page — hero stagger animation ────────────────────────────────
  * Used by app/login/page.tsx. Staggers child elements on the hero panel.
  * ────────────────────────────────────────────────────────────────────────── */
@@ -163,32 +171,97 @@
   animation: sidebar-slide-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* ── Page enter — used on every dashboard page/tab content wrapper ────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.animate-fade-in {
+  animation: fade-up 200ms ease-out both;
+  will-change: transform, opacity;
+}
+
+/* ── Skeleton shimmer — replaces spinners in loading.tsx files ────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--brand-border) 25%,
+    color-mix(in srgb, var(--brand-border) 60%, transparent) 50%,
+    var(--brand-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Card hover lift (Stripe-style) ──────────────────────────────────────── */
+.card-hover {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+/* ── Table stripe/row ─────────────────────────────────────────────────────── */
+.table-row-hover {
+  transition: background-color 0.1s ease;
+}
+.table-row-hover:hover {
+  background-color: #fafafa;
+}
+
+/* ── Tab cross-fade ───────────────────────────────────────────────────────── */
+@keyframes tab-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.tab-fade {
+  animation: tab-fade 150ms ease both;
+}
+
 /* Reduced motion — keep layout, drop decorative motion */
 @media (prefers-reduced-motion: reduce) {
   .loader-card-enter  { animation: none; opacity: 1; }
   .loader-logo-float  { animation: none; }
   .loader-ring-pulse  { animation: none; }
   .loader-shimmer     { animation: none; }
+  .loader-bar-shimmer { animation: none; }
   .login-hero-enter   { animation: none; opacity: 1; }
   .auth-pulse         { animation: none; opacity: 1; }
   .sidebar-slide-in   { animation: none; transform: none; }
   .widget-enter        { animation: none; opacity: 1; }
+  .animate-fade-in    { animation: none; opacity: 1; }
+  .skeleton-shimmer   { animation: none; }
+  .card-hover         { transition: none; }
+  .tab-fade           { animation: none; opacity: 1; }
 }
 
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: var(--brand-border) transparent;
+    scrollbar-color: #d4d4d8 transparent;
   }
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: var(--brand-border);
-    border-radius: 3px;
+    background-color: #d4d4d8;
+    border-radius: 4px;
+  }
+  /* KPI number letter-spacing */
+  .tracking-kpi {
+    letter-spacing: -0.03em;
+  }
+  /* Uppercase label spacing */
+  .tracking-label {
+    letter-spacing: 0.04em;
   }
 }

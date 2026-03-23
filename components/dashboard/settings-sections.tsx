@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { ThemeToggle } from './theme-toggle'
-import { CustomThemeSection } from './custom-theme-section'
+
 import { useLanguage } from '@/lib/dashboard/use-language'
 import { useAccent, ACCENT_PRESETS, type AccentKey } from '@/lib/dashboard/accent'
 import { DICT, LANGUAGE_LABELS, type LangKey } from '@/lib/dashboard/i18n'
@@ -43,8 +43,6 @@ export function AppearanceSection() {
           <LanguagePicker />
         </div>
 
-        {/* Custom Theme (Advanced) */}
-        <CustomThemeSection />
       </div>
     </SettingsSection>
   )
@@ -121,7 +119,7 @@ function AccentColorPicker() {
       </div>
       <span
         className={[
-          'text-[10px] text-emerald-600 dark:text-emerald-400 transition-opacity duration-300',
+          'text-[10px] text-emerald-600 dark:text-emerald-400 transition-opacity duration-150',
           saved ? 'opacity-100' : 'opacity-0 pointer-events-none',
         ].join(' ')}
       >
@@ -173,7 +171,7 @@ function LanguagePicker() {
       </div>
       <span
         className={[
-          'text-[10px] text-emerald-600 dark:text-emerald-400 transition-opacity duration-300',
+          'text-[10px] text-emerald-600 dark:text-emerald-400 transition-opacity duration-150',
           saved ? 'opacity-100' : 'opacity-0 pointer-events-none',
         ].join(' ')}
       >

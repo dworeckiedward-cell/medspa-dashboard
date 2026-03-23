@@ -10,16 +10,21 @@ export const dynamic = 'force-dynamic'
 /**
  * /dashboard/select-tenant
  *
- * Shown to authenticated users who belong to more than one workspace.
- * Renders a branded workspace picker with search and optional ops button.
+ * Shown to authenticated users after login — even single-tenant users must
+ * explicitly confirm their workspace. Renders a branded picker with optional ops button.
  */
 export default async function SelectTenantPage() {
   const { accessMode, needsTenantSelection, availableTenants } = await resolveTenantAccess()
 
-  // Guard: only multi-tenant authenticated users should land here
+  // Guard: only authenticated users with 1+ tenants should land here
   if (accessMode !== 'authenticated') redirect('/dashboard')
   if (!needsTenantSelection) redirect('/dashboard')
   if (!availableTenants || availableTenants.length === 0) redirect('/dashboard')
+
+  // Auto-redirect single-tenant users directly to dashboard — skip the prepare screen
+  if (availableTenants.length === 1) {
+    redirect(`/dashboard?tenant=${encodeURIComponent(availableTenants[0].slug)}`)
+  }
 
   // Check ops access for the optional "Operator Console" button
   let hasOpsAccess = false

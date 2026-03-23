@@ -55,7 +55,7 @@ export function TenantNotFound({ slug, reason = 'not_found' }: TenantNotFoundPro
 
         {isNoWorkspace ? (
           <a
-            href="mailto:support@servify.ai"
+            href="mailto:team@servifylabs.com"
             className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-medium text-[var(--brand-text)] hover:border-[var(--brand-primary)]/50 transition-colors duration-150"
           >
             Contact support →

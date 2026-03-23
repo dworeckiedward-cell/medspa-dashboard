@@ -1,12 +1,33 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+/**
+ * BrandedLoader — premium workspace loading overlay.
+ *
+ * Shows once per session tab. Phase state machine:
+ *   hidden → entering → exiting → hidden
+ *
+ * Design: centered glass card with tenant logo, staged status text,
+ * shimmer progress bar, rotating quote, and ambient brand glow.
+ * Consistent with the premium login page and dashboard aesthetic.
+ */
+
+import { useEffect, useState, useMemo } from 'react'
 import Image from 'next/image'
 
 interface BrandedLoaderProps {
   tenantName: string
   logoUrl: string | null
   brandColor: string
+  /** Pass tenant.updated_at for cache-busting logo images after upload. */
+  updatedAt?: string
+}
+
+/** Append cache-buster to logo URL. */
+function cacheBustLogo(url: string | null, updatedAt?: string): string | null {
+  if (!url) return null
+  const v = updatedAt ? new Date(updatedAt).getTime() : Date.now()
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}v=${v}`
 }
 
 // One splash per browser tab. Subsequent client-side navigations skip the overlay.
@@ -16,17 +37,37 @@ const SESSION_KEY = 'dashboard-loaded'
 type Phase = 'hidden' | 'entering' | 'exiting'
 
 // Timing constants (ms)
-const DISPLAY_MS = 1200 // how long overlay stays before exit begins
-const EXIT_MS    = 380  // CSS fade-out duration (must match transition below)
-const HARD_CAP   = 2000 // absolute safety ceiling — overlay ALWAYS gone by this point
+const DISPLAY_MS = 1800 // premium feel — longer than a flash, shorter than annoying
+const EXIT_MS    = 450  // CSS fade-out duration
+const HARD_CAP   = 2800 // absolute safety ceiling
 
-export function BrandedLoader({ tenantName, logoUrl, brandColor }: BrandedLoaderProps) {
-  const [phase, setPhase]       = useState<Phase>('hidden')
-  const [progress, setProgress] = useState(0)
+// Staged status messages — rotate through for a "steps" feel
+const STATUS_STEPS = [
+  'Preparing your workspace',
+  'Loading your data',
+  'Almost ready',
+]
+const STEP_INTERVAL = 600 // ms between status rotations (slower = more premium)
+
+// Rotating inspirational quotes
+const QUOTES = [
+  'Your AI receptionist never misses a call.',
+  'Every call is an opportunity.',
+  'Faster response, higher conversion.',
+  'AI-powered growth, human touch.',
+  'Your front desk, always on.',
+]
+
+export function BrandedLoader({ tenantName, logoUrl, brandColor, updatedAt }: BrandedLoaderProps) {
+  const resolvedLogoUrl = cacheBustLogo(logoUrl, updatedAt)
+  const [phase, setPhase]         = useState<Phase>('hidden')
+  const [progress, setProgress]   = useState(0)
+  const [stepIndex, setStepIndex] = useState(0)
+
+  // Pick a stable random quote per session
+  const quote = useMemo(() => QUOTES[Math.floor(Math.random() * QUOTES.length)], [])
 
   // ── Effect 1: decide whether to show (once per session) ─────────────────
-  // No timers here — just state machine trigger.
-  // Strict-mode safe: sessionStorage key prevents duplicate shows on re-mount.
   useEffect(() => {
     try {
       if (sessionStorage.getItem(SESSION_KEY)) return
@@ -38,23 +79,21 @@ export function BrandedLoader({ tenantName, logoUrl, brandColor }: BrandedLoader
   }, [])
 
   // ── Effect 2: progress animation + exit timers ───────────────────────────
-  // Runs whenever phase changes. Guard ensures work only happens for 'entering'.
-  // Strict-mode safe: cleanup cancels rAF + clears all timers; re-run restarts them.
   useEffect(() => {
     if (phase !== 'entering') return
 
-    setProgress(12) // initial jump so bar feels responsive
+    setProgress(8) // subtle initial jump
 
-    // Time-based rAF progress: 12 → 88 over DISPLAY_MS × 0.9 (easeOut curve)
+    // Time-based rAF progress: 8 → 85 over DISPLAY_MS × 0.85 (easeOut curve)
     const startTime  = Date.now()
-    const ANIM_RANGE = DISPLAY_MS * 0.9
+    const ANIM_RANGE = DISPLAY_MS * 0.85
     let rafId        = 0
 
     const tick = () => {
       const elapsed = Date.now() - startTime
       const t       = Math.min(elapsed / ANIM_RANGE, 1)
-      const eased   = 1 - Math.pow(1 - t, 2.5) // easeOut power curve
-      setProgress(12 + eased * 76)              // 12 → 88
+      const eased   = 1 - Math.pow(1 - t, 3.5) // slower easeOut power curve
+      setProgress(8 + eased * 77)               // 8 → 85
       if (t < 1) rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
@@ -76,11 +115,19 @@ export function BrandedLoader({ tenantName, logoUrl, brandColor }: BrandedLoader
   }, [phase])
 
   // ── Effect 3: unmount after fade-out completes ───────────────────────────
-  // Separate effect so it survives phase transitions cleanly.
   useEffect(() => {
     if (phase !== 'exiting') return
     const timer = setTimeout(() => setPhase('hidden'), EXIT_MS + 50)
     return () => clearTimeout(timer)
+  }, [phase])
+
+  // ── Effect 4: staged status text rotation ──────────────────────────────
+  useEffect(() => {
+    if (phase !== 'entering') return
+    const timer = setInterval(() => {
+      setStepIndex((i) => (i < STATUS_STEPS.length - 1 ? i + 1 : i))
+    }, STEP_INTERVAL)
+    return () => clearInterval(timer)
   }, [phase])
 
   // Unmounted — nothing to render
@@ -96,18 +143,17 @@ export function BrandedLoader({ tenantName, logoUrl, brandColor }: BrandedLoader
       style={{
         opacity:       isExiting ? 0 : 1,
         transition:    `opacity ${EXIT_MS}ms ease-out`,
-        // Disable pointer capture during fade-out so UI is immediately interactive
         pointerEvents: isExiting ? 'none' : undefined,
       }}
     >
-      {/* Dot-grid texture — decorative, very low opacity */}
+      {/* Clean gradient background — no dot-grid to prevent "excel grid" flicker */}
+
+      {/* Gradient wash over dot-grid for depth */}
       <div
         aria-hidden="true"
-        className="absolute inset-0 pointer-events-none select-none"
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: 'radial-gradient(circle, var(--brand-border) 1px, transparent 1px)',
-          backgroundSize:  '28px 28px',
-          opacity: 0.45,
+          background: `radial-gradient(ellipse 70% 50% at 50% 40%, ${brandColor}08 0%, transparent 100%)`,
         }}
       />
 
@@ -116,53 +162,69 @@ export function BrandedLoader({ tenantName, logoUrl, brandColor }: BrandedLoader
         aria-hidden="true"
         className="loader-ring-pulse absolute pointer-events-none"
         style={{
-          width:        380,
-          height:       380,
+          width:        420,
+          height:       420,
           borderRadius: '50%',
-          background:   `radial-gradient(circle, ${brandColor}1a 0%, transparent 68%)`,
+          background:   `radial-gradient(circle, ${brandColor}18 0%, ${brandColor}08 40%, transparent 68%)`,
         }}
       />
 
       {/* ── Main card ───────────────────────────────────────────────────── */}
       <div
-        className="loader-card-enter relative z-10 flex w-[296px] flex-col items-center rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-8 py-9"
+        className="loader-card-enter relative z-10 flex w-[320px] flex-col items-center rounded-2xl border border-[var(--brand-border)]/60 bg-[var(--brand-surface)]/95 backdrop-blur-sm px-10 py-10"
         style={{
-          boxShadow: `0 0 0 1px ${brandColor}10, 0 20px 60px -12px ${brandColor}28, 0 4px 24px rgba(0,0,0,0.08)`,
+          boxShadow: [
+            `0 0 0 1px ${brandColor}08`,
+            `0 24px 64px -16px ${brandColor}22`,
+            '0 8px 32px rgba(0,0,0,0.06)',
+            '0 1px 3px rgba(0,0,0,0.04)',
+          ].join(', '),
         }}
       >
         {/* Logo cluster */}
-        <div className="relative mb-7">
+        <div className="relative mb-8">
           {/* Blurred glow halo */}
           <div
             aria-hidden="true"
-            className="absolute -inset-4 rounded-3xl pointer-events-none blur-2xl"
-            style={{ background: brandColor, opacity: 0.18 }}
+            className="absolute -inset-5 rounded-3xl pointer-events-none blur-2xl"
+            style={{ background: brandColor, opacity: 0.14 }}
+          />
+
+          {/* Soft ring around logo */}
+          <div
+            aria-hidden="true"
+            className="absolute -inset-2 rounded-[20px] pointer-events-none"
+            style={{
+              border: `1.5px solid ${brandColor}18`,
+              opacity: 0.6,
+            }}
           />
 
           {/* Logo tile */}
           <div
-            className="loader-logo-float relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl text-2xl font-bold text-white"
+            className="loader-logo-float relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-2xl text-2xl font-bold"
             style={{
-              background: brandColor,
-              boxShadow:  `0 0 0 5px ${brandColor}28, 0 8px 32px ${brandColor}42`,
+              background: resolvedLogoUrl ? '#ffffff' : brandColor,
+              color: resolvedLogoUrl ? undefined : '#ffffff',
+              boxShadow:  `0 0 0 4px ${brandColor}20, 0 12px 40px ${brandColor}35`,
             }}
           >
-            {/* Light-sweep shimmer — purely decorative */}
+            {/* Light-sweep shimmer */}
             <div
               aria-hidden="true"
               className="loader-shimmer absolute inset-0 pointer-events-none"
               style={{
                 background:
-                  'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.40) 50%, transparent 70%)',
+                  'linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)',
               }}
             />
 
-            {logoUrl ? (
+            {resolvedLogoUrl ? (
               <Image
-                src={logoUrl}
+                src={resolvedLogoUrl}
                 alt={tenantName}
-                width={64}
-                height={64}
+                width={72}
+                height={72}
                 className="relative z-10 rounded-2xl object-cover"
               />
             ) : (
@@ -172,29 +234,69 @@ export function BrandedLoader({ tenantName, logoUrl, brandColor }: BrandedLoader
         </div>
 
         {/* Workspace name */}
-        <p className="text-[13px] font-semibold leading-none text-[var(--brand-text)]">
+        <p className="text-sm font-semibold leading-none text-[var(--brand-text)] tracking-tight">
           {tenantName}
         </p>
-        <p className="mt-1.5 text-[11px] text-[var(--brand-muted)]">
-          Preparing your workspace
+
+        {/* Staged status text */}
+        <p
+          className="mt-2 text-[11px] text-[var(--brand-muted)] transition-opacity duration-300"
+          style={{ opacity: isExiting ? 0 : 0.7 }}
+        >
+          {STATUS_STEPS[stepIndex]}
         </p>
 
-        {/* Progress bar */}
-        <div
-          className="mt-7 w-full overflow-hidden rounded-full bg-[var(--brand-border)]"
-          style={{ height: 3 }}
-        >
+        {/* Progress bar with shimmer */}
+        <div className="mt-8 w-full">
           <div
-            className="h-full rounded-full"
-            style={{
-              width:      `${progress}%`,
-              background: `linear-gradient(90deg, ${brandColor}cc, ${brandColor})`,
-              // Snap to 100% with a satisfying ease; otherwise ride rAF increments
-              transition: progress >= 100 ? 'width 200ms ease-out' : 'width 80ms linear',
-              willChange: 'width',
-            }}
-          />
+            className="w-full overflow-hidden rounded-full bg-[var(--brand-border)]/60"
+            style={{ height: 3 }}
+          >
+            <div
+              className="relative h-full rounded-full overflow-hidden"
+              style={{
+                width:      `${progress}%`,
+                background: `linear-gradient(90deg, ${brandColor}bb, ${brandColor})`,
+                transition: progress >= 100 ? 'width 300ms ease-out' : 'width 120ms linear',
+                willChange: 'width',
+              }}
+            >
+              {/* Shimmer highlight on bar */}
+              <div
+                aria-hidden="true"
+                className="loader-bar-shimmer absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+                }}
+              />
+            </div>
+          </div>
         </div>
+
+        {/* Step dots */}
+        <div className="mt-4 flex items-center gap-1.5">
+          {STATUS_STEPS.map((_, i) => (
+            <div
+              key={i}
+              className="rounded-full transition-all duration-400"
+              style={{
+                width:      i <= stepIndex ? 6 : 4,
+                height:     i <= stepIndex ? 6 : 4,
+                background: i <= stepIndex ? brandColor : 'var(--brand-border)',
+                opacity:    i <= stepIndex ? 0.8 : 0.4,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Rotating quote */}
+        <p
+          className="mt-6 text-[10px] text-[var(--brand-muted)] text-center italic leading-relaxed transition-opacity duration-500"
+          style={{ opacity: isExiting ? 0 : 0.45, maxWidth: 220 }}
+        >
+          {quote}
+        </p>
       </div>
     </div>
   )

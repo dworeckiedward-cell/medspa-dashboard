@@ -71,6 +71,12 @@ const PROVIDER_META: Record<IntegrationProvider, {
     color: '#1A1A2E',
     description: 'Create deals and activities in Pipedrive.',
   },
+  jane_app: {
+    label: 'Jane App',
+    icon: Globe,
+    color: '#5A67D8',
+    description: 'Sync patients, appointments and availability with Jane App.',
+  },
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

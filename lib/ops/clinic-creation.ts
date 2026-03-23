@@ -30,6 +30,9 @@ export interface CreateClinicInput {
   setupFeeAmount?: number | null
   retainerAmount?: number | null
   currency?: string
+
+  // Dashboard variant
+  clientType?: 'clinic' | 'outbound' | 'fb_leads' | null
 }
 
 export interface CreateClinicResult {
@@ -38,6 +41,8 @@ export interface CreateClinicResult {
   tenant?: Client
   inviteToken?: string
   error?: string
+  /** Non-fatal warning: clinic was created but clients table update failed (run migration 025). */
+  warning?: string
 }
 
 // ── Slug helpers ─────────────────────────────────────────────────────────────
@@ -76,7 +81,8 @@ export async function createClinic(
     return { success: false, error: `Slug "${input.slug}" is already taken` }
   }
 
-  // 2. Create tenant row — only include columns guaranteed to exist.
+  // 2. Create tenant row — only include columns guaranteed to exist on `tenants`.
+  //    Agent IDs, branding, and phone number live on `clients` table (step 2b).
   //    AI columns (ai_enabled, ai_operating_mode, etc.) are NOT included
   //    because they may not exist in the production schema / PostgREST cache.
   const { data: tenant, error: tenantError } = await supabase
@@ -85,13 +91,8 @@ export async function createClinic(
       name: input.name,
       slug: input.slug,
       subdomain: input.slug,
-      logo_url: input.logoUrl ?? null,
-      brand_color: '#2563EB',
       theme_mode: 'dark',
-      retell_agent_id: input.inboundAgentId ?? null,
-      retell_phone_number: input.retellPhoneNumber ?? null,
       timezone: 'America/New_York',
-      currency: input.currency ?? 'USD',
       is_active: true,
     })
     .select('*')
@@ -103,6 +104,40 @@ export async function createClinic(
   }
 
   const tenantId = tenant.id
+
+  // 2b. Persist branding, agent IDs, and dashboard mode to clients table
+  //     (graceful — client creation continues if this errors)
+  const dashboardMode =
+    input.clientType === 'outbound' ? 'outbound_db'
+    : input.clientType === 'fb_leads' ? 'fb_leads'
+    : 'inbound_clinic'
+
+  let brandingWarning: string | undefined
+  try {
+    const { error: brandingError } = await supabase
+      .from('clients')
+      .update({
+        logo_url: input.logoUrl ?? null,
+        brand_color: '#2563EB',
+        accent_color: '#8B5CF6',
+        currency: input.currency ?? 'USD',
+        client_type: input.clientType === 'fb_leads' ? 'clinic' : (input.clientType ?? 'clinic'),
+        dashboard_mode: dashboardMode,
+        retell_agent_id: input.inboundAgentId ?? null,
+        outbound_agent_id: input.outboundAgentId ?? null,
+        retell_phone_number: input.retellPhoneNumber ?? null,
+      })
+      .eq('id', tenantId)
+
+    if (brandingError) {
+      console.warn('[clinic-creation] Clients update failed:', brandingError.message)
+      brandingWarning = `Client details not saved (${brandingError.message})`
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.warn('[clinic-creation] Clients update failed — continuing without details')
+    brandingWarning = `Client details not saved (${msg})`
+  }
 
   // 3. Create financial profile (commercials) — graceful if table missing
   if (input.setupFeeAmount || input.retainerAmount) {
@@ -171,7 +206,7 @@ export async function createClinic(
     await supabase.from('ops_notifications').insert({
       tenant_id: tenantId,
       type: 'clinic_created',
-      title: `New clinic: ${input.name}`,
+      title: `New client: ${input.name}`,
       description: `Created by ${operatorEmail}. Prompts pending generation.`,
       action_href: `/ops/clients/${tenantId}/financials`,
     })
@@ -184,5 +219,6 @@ export async function createClinic(
     tenantId,
     tenant: tenant as Client,
     inviteToken,
+    warning: brandingWarning,
   }
 }

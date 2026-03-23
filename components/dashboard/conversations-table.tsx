@@ -80,7 +80,6 @@ const VIEW_PRESETS: ViewPresetDef[] = [
   { key: 'all', label: 'All' },
   { key: 'inbound', label: 'Inbound' },
   { key: 'outbound', label: 'Outbound' },
-  { key: 'chatbot', label: 'Chatbot' },
   { key: 'needs_review', label: 'Needs Review' },
   { key: 'booked', label: 'Booked' },
 ]
@@ -254,23 +253,7 @@ export function ConversationsTable({ conversations, tenantSlug }: ConversationsT
             </button>
           ))}
 
-          <span className="w-px h-5 bg-[var(--brand-border)] self-center mx-1" />
-
-          {/* Channel filters */}
-          {(['all', 'sms', 'instagram', 'whatsapp'] as const).map((ch) => (
-            <button
-              key={ch}
-              onClick={() => setChannelFilter(ch)}
-              className={cn(
-                'rounded-full px-2.5 py-1 text-[10px] font-medium transition-all duration-150',
-                channelFilter === ch
-                  ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] border border-[var(--brand-primary)]/20'
-                  : 'bg-[var(--brand-bg)] text-[var(--brand-muted)] border border-[var(--brand-border)]/60 hover:text-[var(--brand-text)] hover:border-[var(--brand-border)]',
-              )}
-            >
-              {ch === 'all' ? 'All Channels' : CHANNEL_CONFIG[ch].label}
-            </button>
-          ))}
+          {/* Channel filter removed — SMS only view */}
         </div>
       </CardHeader>
 
@@ -284,7 +267,7 @@ export function ConversationsTable({ conversations, tenantSlug }: ConversationsT
             <div>
               <p className="text-sm font-medium text-[var(--brand-text)]">No conversations yet</p>
               <p className="text-xs text-[var(--brand-muted)] mt-1 max-w-xs mx-auto">
-                Conversations from your chatbot channels (SMS, Instagram, WhatsApp) will appear here once connected.
+                SMS conversations with your patients will appear here once connected.
               </p>
             </div>
           </div>

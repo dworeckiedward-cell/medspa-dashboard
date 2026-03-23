@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { formatDistanceToNowStrict, parseISO, isBefore, isAfter, addHours } from 'date-fns'
+import { formatDistanceToNowStrict, parseISO, isBefore, addHours } from 'date-fns'
 import {
   Phone,
   Clock,
@@ -11,6 +11,8 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
+  Loader2,
+  X,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -19,12 +21,14 @@ import { cn } from '@/lib/utils'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { FollowUpTask, FollowUpTaskType } from '@/lib/types/domain'
 import { FOLLOWUP_TYPE_LABELS } from '@/lib/types/domain'
+import { useDashboardData } from './dashboard-data-provider'
+import { CallDetailPanel } from './call-detail-panel'
+import type { CallLog } from '@/types/database'
 
 interface FollowUpQueueProps {
   tasks: FollowUpTask[]
+  tenantSlug?: string
 }
-
-type TabKey = 'callback' | 'interested' | 'no_show' | 'reminders' | 'human_review'
 
 // ── SLA helpers ───────────────────────────────────────────────────────────────
 
@@ -66,11 +70,41 @@ function SlaBadge({ dueAt }: { dueAt: string }) {
 
 // ── Task card ────────────────────────────────────────────────────────────────
 
-function TaskCard({ task }: { task: FollowUpTask }) {
+type CallState = 'idle' | 'loading' | 'success' | 'error'
+
+function TaskCard({ task, tenantSlug, onOpenDetail }: { task: FollowUpTask; tenantSlug?: string; onOpenDetail?: () => void }) {
   const { t } = useLanguage()
   const [scriptExpanded, setScriptExpanded] = useState(false)
   const [done, setDone] = useState(false)
   const [snoozed, setSnoozed] = useState(false)
+  const [callState, setCallState] = useState<CallState>('idle')
+
+  async function handleFollowUp() {
+    const phone = task.contact?.phone
+    if (!phone || callState !== 'idle') return
+    setCallState('loading')
+    try {
+      const res = await fetch('/api/follow-up/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          firstName: task.contact?.fullName?.split(' ')[0] ?? 'there',
+          tenantSlug,
+        }),
+      })
+      if (res.ok) {
+        setCallState('success')
+        setTimeout(() => setCallState('idle'), 3000)
+      } else {
+        setCallState('error')
+        setTimeout(() => setCallState('idle'), 3000)
+      }
+    } catch {
+      setCallState('error')
+      setTimeout(() => setCallState('idle'), 3000)
+    }
+  }
 
   if (done || snoozed) {
     return (
@@ -93,7 +127,9 @@ function TaskCard({ task }: { task: FollowUpTask }) {
         slaStatus === 'overdue'
           ? 'border-rose-300 dark:border-rose-900/40'
           : 'border-[var(--brand-border)]',
+        onOpenDetail && 'cursor-pointer hover:bg-[var(--brand-bg)]/40 transition-colors',
       )}
+      onClick={onOpenDetail}
     >
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
@@ -107,6 +143,11 @@ function TaskCard({ task }: { task: FollowUpTask }) {
             <Badge variant={task.priority === 'high' ? 'destructive' : task.priority === 'medium' ? 'warning' : 'muted'} className="text-[10px]">
               {task.priority}
             </Badge>
+            {task.bookingLinkSent && (
+              <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                Link sent
+              </span>
+            )}
           </div>
 
           {/* Phone */}
@@ -170,7 +211,7 @@ function TaskCard({ task }: { task: FollowUpTask }) {
       )}
 
       {/* Quick actions */}
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
         <Button
           size="sm"
           variant="ghost"
@@ -189,6 +230,32 @@ function TaskCard({ task }: { task: FollowUpTask }) {
           <AlarmClock className="h-3 w-3 mr-1" />
           {t.followUp.snooze}
         </Button>
+
+        {/* Follow Up call button — only shown when contact has a phone number */}
+        {task.contact?.phone && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={callState === 'loading'}
+            onClick={handleFollowUp}
+            className={cn(
+              'h-7 text-xs border transition-colors duration-150',
+              callState === 'idle'
+                ? 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                : callState === 'loading'
+                  ? 'text-[var(--brand-muted)] border-[var(--brand-border)] cursor-not-allowed'
+                  : callState === 'success'
+                    ? 'bg-emerald-500 text-white border-emerald-500'
+                    : 'text-rose-500 border-rose-400/40',
+            )}
+          >
+            {callState === 'idle' && <><Phone className="h-3 w-3 mr-1" />Call</>}
+            {callState === 'loading' && <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Calling...</>}
+            {callState === 'success' && <><CheckCircle2 className="h-3 w-3 mr-1" />Queued</>}
+            {callState === 'error' && <><X className="h-3 w-3 mr-1" />Failed</>}
+          </Button>
+        )}
+
         <Button
           size="sm"
           variant="ghost"
@@ -222,120 +289,62 @@ function EmptyQueue() {
   )
 }
 
-// ── Tab bar ───────────────────────────────────────────────────────────────────
-
-function QueueTabBar({
-  tabs,
-  active,
-  onSelect,
-}: {
-  tabs: { key: TabKey; label: string; count: number }[]
-  active: TabKey
-  onSelect: (k: TabKey) => void
-}) {
-  return (
-    <div className="flex gap-0 border-b border-[var(--brand-border)]/50 overflow-x-auto" role="tablist">
-      {tabs.map((tab) => {
-        const isActive = active === tab.key
-        return (
-          <button
-            key={tab.key}
-            role="tab"
-            aria-selected={isActive}
-            onClick={() => onSelect(tab.key)}
-            className={cn(
-              'flex items-center gap-1.5 px-4 py-2.5 border-b-2 text-xs font-medium whitespace-nowrap transition-colors duration-150',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--user-accent)]',
-              isActive
-                ? 'border-[var(--user-accent)] text-[var(--user-accent)]'
-                : 'border-transparent text-[var(--brand-muted)] hover:text-[var(--brand-text)]',
-            )}
-          >
-            {tab.label}
-            {tab.count > 0 && (
-              <span className={cn(
-                'rounded-full px-1.5 py-0 text-[10px] font-semibold',
-                isActive ? 'bg-[var(--user-accent)] text-white' : 'bg-[var(--brand-border)] text-[var(--brand-muted)]',
-              )}>
-                {tab.count}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
 // ── Main queue component ──────────────────────────────────────────────────────
 
-export function FollowUpQueue({ tasks }: FollowUpQueueProps) {
+export function FollowUpQueue({ tasks, tenantSlug }: FollowUpQueueProps) {
   const { t } = useLanguage()
-  const [activeTab, setActiveTab] = useState<TabKey>('callback')
+  const ctx = useDashboardData()
+  const [selectedLog, setSelectedLog] = useState<CallLog | null>(null)
 
-  // Partition tasks into queue buckets
-  const callbackTasks = tasks.filter((t) =>
-    t.taskType === 'callback' && t.status !== 'done',
-  )
-  const interestedTasks = tasks.filter((t) =>
-    t.taskType === 'reminder' && t.status !== 'done',
-  )
-  const noShowTasks = tasks.filter((t) =>
-    t.taskType === 'reactivation' && t.status !== 'done',
-  )
-  const humanReviewTasks = tasks.filter((t) =>
-    t.taskType === 'human_review' && t.status !== 'done',
-  )
+  const openTasks = tasks.filter((t) => t.status !== 'done')
 
-  const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: 'callback', label: t.followUp.tabCallBackNow, count: callbackTasks.length },
-    { key: 'interested', label: t.followUp.tabInterested, count: interestedTasks.length },
-    { key: 'no_show', label: t.followUp.tabNoShow, count: noShowTasks.length },
-    { key: 'reminders', label: t.followUp.tabReminders, count: 0 },
-    { key: 'human_review', label: t.followUp.tabHumanReview, count: humanReviewTasks.length },
-  ]
+  const sortedTasks = [...openTasks].sort((a, b) => {
+    const slaA = getSlaStatus(a.dueAt)
+    const slaB = getSlaStatus(b.dueAt)
+    const slaOrder = { overdue: 0, due_soon: 1, on_track: 2 }
+    if (slaOrder[slaA] !== slaOrder[slaB]) return slaOrder[slaA] - slaOrder[slaB]
+    const priOrder = { high: 0, medium: 1, low: 2 }
+    return priOrder[a.priority] - priOrder[b.priority]
+  })
 
-  const visibleTasks: Record<TabKey, FollowUpTask[]> = {
-    callback: callbackTasks,
-    interested: interestedTasks,
-    no_show: noShowTasks,
-    reminders: [],
-    human_review: humanReviewTasks,
+  function handleOpenDetail(task: FollowUpTask) {
+    const log = ctx?.calls.find((c) => c.id === task.id) ?? null
+    setSelectedLog(log)
   }
 
-  const currentTasks = visibleTasks[activeTab]
-
-  const totalOpen = tasks.filter((t) => t.status === 'open' || t.status === 'in_progress').length
-
   return (
-    <Card>
-      <CardHeader className="pb-0">
-        <CardTitle>{t.followUp.pageTitle}</CardTitle>
-        <CardDescription>
-          {t.followUp.pageSubtitle} · {totalOpen} open
-        </CardDescription>
-        <QueueTabBar tabs={tabs} active={activeTab} onSelect={setActiveTab} />
-      </CardHeader>
+    <>
+      <CallDetailPanel
+        log={selectedLog}
+        onClose={() => setSelectedLog(null)}
+        tenantSlug={tenantSlug}
+      />
 
-      <CardContent className="pt-5">
-        {currentTasks.length === 0 ? (
-          <EmptyQueue />
-        ) : (
-          <div className="space-y-3">
-            {/* Sort: overdue first, then by priority */}
-            {[...currentTasks]
-              .sort((a, b) => {
-                const slaA = getSlaStatus(a.dueAt)
-                const slaB = getSlaStatus(b.dueAt)
-                const slaOrder = { overdue: 0, due_soon: 1, on_track: 2 }
-                if (slaOrder[slaA] !== slaOrder[slaB]) return slaOrder[slaA] - slaOrder[slaB]
-                const priOrder = { high: 0, medium: 1, low: 2 }
-                return priOrder[a.priority] - priOrder[b.priority]
-              })
-              .map((task) => <TaskCard key={task.id} task={task} />)}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle>{t.followUp.pageTitle}</CardTitle>
+          <CardDescription>
+            {t.followUp.pageSubtitle} · {openTasks.length} open
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="pt-0">
+          {sortedTasks.length === 0 ? (
+            <EmptyQueue />
+          ) : (
+            <div className="space-y-3">
+              {sortedTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  tenantSlug={tenantSlug}
+                  onOpenDetail={() => handleOpenDetail(task)}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   )
 }

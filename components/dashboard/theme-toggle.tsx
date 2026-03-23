@@ -2,24 +2,22 @@
 
 import { useEffect, useState } from 'react'
 
-export type ThemeMode = 'system' | 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark'
 
 const STORAGE_KEY = 'dashboard-theme'
 
 function getStoredTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'system'
-  return (localStorage.getItem(STORAGE_KEY) as ThemeMode) ?? 'system'
+  if (typeof window === 'undefined') return 'dark'
+  return (localStorage.getItem(STORAGE_KEY) as ThemeMode) ?? 'dark'
 }
 
 function applyTheme(mode: ThemeMode) {
   const root = document.documentElement
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  const shouldBeDark = mode === 'dark' || (mode === 'system' && prefersDark)
-  root.classList.toggle('dark', shouldBeDark)
+  root.classList.toggle('dark', mode === 'dark')
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<ThemeMode>('system')
+  const [theme, setThemeState] = useState<ThemeMode>('dark')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -28,15 +26,6 @@ export function useTheme() {
     applyTheme(stored)
     setMounted(true)
   }, [])
-
-  // Re-sync when OS preference changes (only while in system mode)
-  useEffect(() => {
-    if (!mounted || theme !== 'system') return
-    const mql = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => applyTheme('system')
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
-  }, [mounted, theme])
 
   function setTheme(mode: ThemeMode) {
     setThemeState(mode)
@@ -48,7 +37,6 @@ export function useTheme() {
 }
 
 const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
-  { value: 'system', label: 'System' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
 ]
@@ -93,7 +81,7 @@ export function ThemeToggle() {
       {/* Ephemeral save confirmation */}
       <span
         className={[
-          'text-[10px] text-emerald-600 dark:text-emerald-400 transition-opacity duration-300',
+          'text-[10px] text-emerald-600 dark:text-emerald-400 transition-opacity duration-150',
           saved ? 'opacity-100' : 'opacity-0 pointer-events-none',
         ].join(' ')}
       >
@@ -108,7 +96,7 @@ export function ThemeBadge() {
   const { theme, mounted } = useTheme()
   if (!mounted) return null
 
-  const label = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System'
+  const label = theme === 'light' ? 'Light' : 'Dark'
 
   return (
     <span className="hidden sm:inline-flex items-center rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--brand-muted)] select-none">

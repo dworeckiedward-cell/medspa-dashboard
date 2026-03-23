@@ -89,6 +89,17 @@ export async function middleware(request: NextRequest) {
     response.cookies.set(name, value, options)
   }
 
+  // Persist the selected tenant to a cookie so subsequent navigations
+  // (e.g. /dashboard/support) can resolve the tenant without ?tenant= param.
+  if (resolved?.source === 'query_param') {
+    response.cookies.set('selected_tenant', resolved.slug, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 8, // 8 hours
+    })
+  }
+
   return response
 }
 

@@ -8,6 +8,7 @@
  */
 
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { enrichTenantsWithBranding } from '@/lib/tenant/get-tenant-config'
 import { subDays } from 'date-fns'
 import type { Client, CallLog, CrmDeliveryLog, ClientIntegrationDb } from '@/types/database'
 
@@ -33,13 +34,12 @@ export interface ClientOverview {
 
 // ── Queries ──────────────────────────────────────────────────────────────────
 
-/** Fetch active clients ordered by creation date (capped at 200) */
+/** Fetch all clients ordered by creation date (capped at 200). Includes inactive. */
 export async function listAllClients(): Promise<Client[]> {
   const supabase = createSupabaseServerClient()
   const { data, error } = await supabase
     .from('tenants')
     .select('*')
-    .eq('is_active', true)
     .order('created_at', { ascending: false })
     .limit(200)
 
@@ -47,7 +47,8 @@ export async function listAllClients(): Promise<Client[]> {
     console.error('[ops] listAllClients error:', error.message)
     return []
   }
-  return (data ?? []) as Client[]
+  // Enrich with branding from clients table (logo_url, brand_color, accent_color)
+  return enrichTenantsWithBranding(data ?? [])
 }
 
 /** Fetch call stats for a single client (last 30 days) */

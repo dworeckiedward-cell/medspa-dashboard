@@ -13,7 +13,7 @@
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type ProviderStatus = 'available' | 'coming_soon' | 'via_webhook'
-export type ProviderCategory = 'crm' | 'medspa' | 'marketing' | 'scheduling'
+export type ProviderCategory = 'crm' | 'practice_management' | 'marketing' | 'scheduling'
 
 export interface ProviderCapability {
   key: string
@@ -80,11 +80,11 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     capabilities: ['crm_sync', 'contacts', 'bookings'],
   },
 
-  // ── MedSpa connectors (coming soon) ──
+  // ── Practice Management connectors (coming soon) ──
   {
     key: 'mindbody',
     name: 'Mindbody',
-    category: 'medspa',
+    category: 'practice_management',
     status: 'coming_soon',
     description: 'Bookings & availability sync',
     color: '#00A1E0',
@@ -95,7 +95,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
   {
     key: 'zenoti',
     name: 'Zenoti',
-    category: 'medspa',
+    category: 'practice_management',
     status: 'coming_soon',
     description: 'Enterprise spa management sync',
     color: '#1B365D',
@@ -106,7 +106,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
   {
     key: 'boulevard',
     name: 'Boulevard',
-    category: 'medspa',
+    category: 'practice_management',
     status: 'coming_soon',
     description: 'Client management & scheduling',
     color: '#000000',
@@ -117,8 +117,8 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
   {
     key: 'jane_app',
     name: 'Jane App',
-    category: 'medspa',
-    status: 'coming_soon',
+    category: 'practice_management',
+    status: 'available',
     description: 'Practice management for health & wellness',
     color: '#5A67D8',
     initial: 'J',
@@ -128,7 +128,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
   {
     key: 'vagaro',
     name: 'Vagaro',
-    category: 'medspa',
+    category: 'practice_management',
     status: 'coming_soon',
     description: 'Salon & spa booking platform',
     color: '#FF6B35',
@@ -139,7 +139,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
   {
     key: 'aesthetic_record',
     name: 'Aesthetic Record',
-    category: 'medspa',
+    category: 'practice_management',
     status: 'coming_soon',
     description: 'Aesthetic practice management',
     color: '#C084FC',
@@ -150,7 +150,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
   {
     key: 'nextech',
     name: 'Nextech',
-    category: 'medspa',
+    category: 'practice_management',
     status: 'coming_soon',
     description: 'Specialty healthcare EHR + practice management',
     color: '#0077B6',
@@ -161,7 +161,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
   {
     key: 'phorest',
     name: 'Phorest',
-    category: 'medspa',
+    category: 'practice_management',
     status: 'coming_soon',
     description: 'Salon management & marketing',
     color: '#E63946',
@@ -185,6 +185,9 @@ export function getComingSoonProviders(): ProviderMeta[] {
   return PROVIDER_REGISTRY.filter((p) => p.status === 'coming_soon')
 }
 
-export function getMedSpaProviders(): ProviderMeta[] {
-  return PROVIDER_REGISTRY.filter((p) => p.category === 'medspa')
+export function getPracticeManagementProviders(): ProviderMeta[] {
+  return PROVIDER_REGISTRY.filter((p) => p.category === 'practice_management')
 }
+
+/** @deprecated Use `getPracticeManagementProviders()` instead. */
+export const getMedSpaProviders = getPracticeManagementProviders

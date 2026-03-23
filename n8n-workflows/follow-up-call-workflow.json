@@ -1,0 +1,325 @@
+{
+  "name": "Live Younger — Follow-Up Call (Agent #3)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "live-younger/follow-up-call",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Follow-Up Call",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 300],
+      "webhookId": "follow-up-call-live-younger"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"queued\" }",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-immediately",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [480, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "hours-check",
+              "leftValue": "={{ $now.toFormat('H') }}",
+              "rightValue": "8",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "hours-check-2",
+              "leftValue": "={{ $now.toFormat('H') }}",
+              "rightValue": "20",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "calling-hours-guard",
+      "name": "Within Calling Hours? (8am–8pm MT)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, 380]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "wait-5s",
+      "name": "Wait 5s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [700, 340],
+      "webhookId": "wait-follow-up"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.retellai.com/v2/create-phone-call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer key_93a1c587cfccffcd521b20be0b33"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "agent_id": "agent_5f231a9b5ad74fb1de54442934",
+          "from_number": "+15873247689",
+          "to_number": "={{ $('Webhook: Follow-Up Call').item.json.body.phone }}",
+          "retell_llm_dynamic_variables": {
+            "first_name": "={{ $('Webhook: Follow-Up Call').item.json.body.first_name }}",
+            "campaign_type": "={{ $('Webhook: Follow-Up Call').item.json.body.campaign_type }}",
+            "last_call_context": "={{ $('Webhook: Follow-Up Call').item.json.body.last_call_context }}",
+            "last_call_reason": "={{ $('Webhook: Follow-Up Call').item.json.body.last_call_reason }}",
+            "days_since": "={{ $('Webhook: Follow-Up Call').item.json.body.days_since_last_call }}"
+          },
+          "metadata": {
+            "tenant_slug": "={{ $('Webhook: Follow-Up Call').item.json.body.tenant_slug }}",
+            "original_call_id": "={{ $('Webhook: Follow-Up Call').item.json.body.original_call_id }}",
+            "call_source": "follow_up_queue"
+          }
+        },
+        "options": {}
+      },
+      "id": "retell-create-call",
+      "name": "Retell: Create Follow-Up Call (Agent #3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 340]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.servifylabs.com/api/call-logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "servify-n8n-temp-2026-very-strong-key"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "tenant_slug": "={{ $('Webhook: Follow-Up Call').item.json.body.tenant_slug }}",
+          "call_id": "={{ $('Retell: Create Follow-Up Call (Agent #3)').item.json.call_id }}",
+          "call_type": "follow_up",
+          "direction": "outbound",
+          "phone": "={{ $('Webhook: Follow-Up Call').item.json.body.phone }}",
+          "first_name": "={{ $('Webhook: Follow-Up Call').item.json.body.first_name }}",
+          "status": "initiated",
+          "original_call_id": "={{ $('Webhook: Follow-Up Call').item.json.body.original_call_id }}"
+        },
+        "options": {}
+      },
+      "id": "log-to-dashboard",
+      "name": "Log Call to Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 280]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "tableId": "outbound_call_tracker",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone",
+              "keyValue": "={{ $('Webhook: Follow-Up Call').item.json.body.phone }}"
+            },
+            {
+              "keyName": "client_id",
+              "keyValue": "=f318ff09-2094-4f7f-b617-28aece908ed5"
+            }
+          ]
+        },
+        "fieldsToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "client_id",
+              "fieldValue": "f318ff09-2094-4f7f-b617-28aece908ed5"
+            },
+            {
+              "fieldId": "phone",
+              "fieldValue": "={{ $('Webhook: Follow-Up Call').item.json.body.phone }}"
+            },
+            {
+              "fieldId": "last_follow_up_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            },
+            {
+              "fieldId": "last_call_context",
+              "fieldValue": "={{ $('Webhook: Follow-Up Call').item.json.body.last_call_context }}"
+            }
+          ]
+        }
+      },
+      "id": "upsert-tracker",
+      "name": "Upsert Supabase Tracker",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1140, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-live-younger",
+          "name": "Supabase — Live Younger"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://app.servifylabs.com/api/alerts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "tenant_slug": "={{ $('Webhook: Follow-Up Call').item.json.body.tenant_slug }}",
+          "type": "outside_calling_hours",
+          "message": "Follow-up call attempted outside calling hours for {{ $('Webhook: Follow-Up Call').item.json.body.phone }}",
+          "phone": "={{ $('Webhook: Follow-Up Call').item.json.body.phone }}"
+        },
+        "options": {}
+      },
+      "id": "outside-hours",
+      "name": "Outside Hours — Log & Skip",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 520]
+    }
+  ],
+  "connections": {
+    "Webhook: Follow-Up Call": {
+      "main": [
+        [
+          {
+            "node": "Respond 200",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Within Calling Hours? (8am–8pm MT)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Within Calling Hours? (8am–8pm MT)": {
+      "main": [
+        [
+          {
+            "node": "Wait 5s",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Outside Hours — Log & Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5s": {
+      "main": [
+        [
+          {
+            "node": "Retell: Create Follow-Up Call (Agent #3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retell: Create Follow-Up Call (Agent #3)": {
+      "main": [
+        [
+          {
+            "node": "Log Call to Dashboard",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upsert Supabase Tracker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 0,
+  "tags": [
+    {
+      "createdAt": "2026-03-12T00:00:00.000Z",
+      "updatedAt": "2026-03-12T00:00:00.000Z",
+      "id": "live-younger",
+      "name": "live-younger"
+    }
+  ]
+}

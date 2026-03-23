@@ -17,8 +17,10 @@ import {
   FileText,
   Brain,
 } from 'lucide-react'
+import { RecordingPlayer } from './recording-player'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatCurrency, formatDuration } from '@/lib/utils'
+import { cn, polish, formatCurrency, formatDuration, highlightSegments } from '@/lib/utils'
 import type { CallLog, CallType, CallDisposition, CallSentiment } from '@/types/database'
 import {
   CALL_TYPE_LABELS,
@@ -44,12 +46,44 @@ import {
   CALL_INTENT_LABELS,
 } from '@/types/database'
 
+// ── Search highlight renderer ────────────────────────────────────────────────
+
+function Hl({ text, query }: { text: string; query: string }) {
+  if (!query || query.length < 2) return <>{text}</>
+  const segs = highlightSegments(text, query)
+  return (
+    <>
+      {segs.map((s, i) =>
+        typeof s === 'string' ? (
+          <Fragment key={i}>{s}</Fragment>
+        ) : (
+          <mark key={i} className="bg-[var(--user-accent)]/15 text-[var(--user-accent)] rounded px-0.5 py-px">
+            {s.text}
+          </mark>
+        ),
+      )}
+    </>
+  )
+}
+
 interface CallLogsTableProps {
   initialData: CallLog[]
   totalCount: number
   clientId: string
   /** When provided, row clicks open the detail panel instead of inline-expanding. */
   onSelectCall?: (log: CallLog) => void
+  /** Pre-activate the "Has recording" chip (e.g. from ?hasRecording=1). */
+  initialChipRecording?: boolean
+  /** @deprecated No longer used — booked/lead columns removed. */
+  initialChipBookedOrLead?: boolean
+  /** Pre-set the direction filter (e.g. 'outbound' from ?direction=outbound). */
+  initialDirection?: string
+  /** Pre-apply a minimum call duration in seconds (e.g. 120 from ?minDuration=120). */
+  initialMinDurationSec?: number
+  /** Pre-apply a minimum lead confidence 0–100 (e.g. 60 from ?minConfidence=60). */
+  initialMinLeadConfidence?: number
+  /** @deprecated No longer used — booked column removed. */
+  initialBookedOnly?: boolean
 }
 
 const callTypeColors: Record<
@@ -78,17 +112,46 @@ const dispositionColors: Record<
   other: 'muted',
 }
 
-const sentimentStyle: Record<CallSentiment, { label: string; className: string }> = {
-  positive: { label: 'Positive', className: 'text-emerald-600 dark:text-emerald-400' },
-  neutral:  { label: 'Neutral',  className: 'text-[var(--brand-muted)]' },
-  negative: { label: 'Negative', className: 'text-rose-600 dark:text-rose-400' },
+// Sentiment pill — compact dot + label
+function SentimentPill({ sentiment }: { sentiment: CallSentiment | null | string | undefined }) {
+  if (!sentiment) return <span className="text-[var(--brand-muted)] opacity-30 text-xs">—</span>
+  const cfg: Record<string, { label: string; dot: string; text: string }> = {
+    positive:  { label: 'Positive',  dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+    neutral:   { label: 'Neutral',   dot: 'bg-gray-400',    text: 'text-[var(--brand-muted)]' },
+    negative:  { label: 'Negative',  dot: 'bg-rose-500',    text: 'text-rose-600 dark:text-rose-400' },
+    follow_up: { label: 'Follow-up', dot: 'bg-amber-400',   text: 'text-amber-600 dark:text-amber-400' },
+  }
+  const s = cfg[sentiment as string] ?? { label: sentiment as string, dot: 'bg-gray-400', text: 'text-[var(--brand-muted)]' }
+  return (
+    <span className={`flex items-center gap-1.5 text-xs font-medium ${s.text}`}>
+      <span className={`h-2 w-2 rounded-full shrink-0 ${s.dot}`} />
+      {s.label}
+    </span>
+  )
 }
 
-type SortKey = 'created_at' | 'potential_revenue' | 'duration_seconds'
+type SortKey = 'created_at' | 'duration_seconds'
 
 const PAGE_SIZE = 20
 
-export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall }: CallLogsTableProps) {
+const TIME_RANGES = [
+  { label: 'Last 24h',   hours: 24  },
+  { label: 'Last 3 days',hours: 72  },
+  { label: 'Last 7 days',hours: 168 },
+  { label: 'Last 14 days',hours: 336 },
+  { label: 'Last 30 days',hours: 720 },
+]
+
+export function CallLogsTable({
+  initialData,
+  totalCount,
+  clientId,
+  onSelectCall,
+  initialChipRecording,
+  initialDirection,
+  initialMinDurationSec,
+  initialMinLeadConfidence,
+}: CallLogsTableProps) {
   // ── Persist filters in localStorage, keyed by clientId ────────────────────
   const storageKey = `call-logs-filters:${clientId}`
 
@@ -96,7 +159,7 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
     if (typeof window === 'undefined') return null
     try {
       const raw = window.localStorage.getItem(storageKey)
-      return raw ? (JSON.parse(raw) as { type: string; booked: string; direction: string }) : null
+      return raw ? (JSON.parse(raw) as { type: string }) : null
     } catch {
       return null
     }
@@ -106,49 +169,36 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
 
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<string>(saved?.type ?? 'all')
-  const [filterBooked, setFilterBooked] = useState<string>(saved?.booked ?? 'all')
-  const [filterDirection, setFilterDirection] = useState<string>(saved?.direction ?? 'all')
+  const [filterSentiment, setFilterSentiment] = useState<string>('all')
+  const [timeRangeIndex, setTimeRangeIndex] = useState(4) // default: 30 days
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [playingId, setPlayingId] = useState<string | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   // Persist filter changes to localStorage
   useEffect(() => {
     try {
-      window.localStorage.setItem(
-        storageKey,
-        JSON.stringify({ type: filterType, booked: filterBooked, direction: filterDirection }),
-      )
+      window.localStorage.setItem(storageKey, JSON.stringify({ type: filterType }))
     } catch {
       // localStorage may be unavailable in some environments
     }
-  }, [storageKey, filterType, filterBooked, filterDirection])
+  }, [storageKey, filterType])
 
   // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [search, filterType, filterBooked, filterDirection])
+  }, [search, filterType, filterSentiment, timeRangeIndex])
 
   const filtered = useMemo(() => {
+    const cutoff = Date.now() - TIME_RANGES[timeRangeIndex].hours * 3_600_000
     return initialData.filter((log) => {
+      // Time range filter
+      if (new Date(log.created_at).getTime() < cutoff) return false
       if (filterType !== 'all' && log.call_type !== filterType) return false
-      if (filterBooked === 'booked' && !log.is_booked) return false
-      if (filterBooked === 'not_booked' && log.is_booked) return false
-
-      if (filterDirection !== 'all') {
-        if (log.direction !== null && log.direction !== undefined) {
-          // New rows: use explicit direction field
-          if (log.direction !== filterDirection) return false
-        } else {
-          // Old rows: infer direction from call_type as proxy
-          const isInbound = log.call_type === 'inbound_inquiry'
-          if (filterDirection === 'inbound' && !isInbound) return false
-          if (filterDirection === 'outbound' && isInbound) return false
-        }
-      }
-
+      if (filterSentiment !== 'all' && log.sentiment !== filterSentiment) return false
+      if (initialMinDurationSec !== undefined && (log.duration_seconds ?? 0) < initialMinDurationSec) return false
+      if (initialMinLeadConfidence !== undefined && Math.round((log.lead_confidence ?? 0) * 100) < initialMinLeadConfidence) return false
       if (search) {
         const q = search.toLowerCase()
         return (
@@ -162,20 +212,14 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
       }
       return true
     })
-  }, [initialData, filterType, filterBooked, filterDirection, search])
+  }, [initialData, filterType, filterSentiment, timeRangeIndex, search, initialMinDurationSec, initialMinLeadConfidence])
 
   const sorted = useMemo(() => {
-    if (!sortKey) return filtered
     return [...filtered].sort((a, b) => {
-      if (sortKey === 'created_at') {
-        const cmp = a.created_at.localeCompare(b.created_at)
-        return sortDir === 'asc' ? cmp : -cmp
-      }
-      const aVal = a[sortKey] ?? 0
-      const bVal = b[sortKey] ?? 0
-      return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+      const cmp = a.created_at.localeCompare(b.created_at)
+      return sortDir === 'asc' ? cmp : -cmp
     })
-  }, [filtered, sortKey, sortDir])
+  }, [filtered, sortDir])
 
   const visible = sorted.slice(0, visibleCount)
   const isEmpty = sorted.length === 0
@@ -183,35 +227,15 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
   const remaining = sorted.length - visibleCount
 
   const hasActiveFilters =
-    search || filterType !== 'all' || filterBooked !== 'all' || filterDirection !== 'all'
-
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortKey(key)
-      setSortDir('desc')
-    }
-  }
+    !!search || filterType !== 'all' || filterSentiment !== 'all' ||
+    timeRangeIndex !== 4 || !!initialMinDurationSec || !!initialMinLeadConfidence
 
   function clearFilters() {
     setSearch('')
     setFilterType('all')
-    setFilterBooked('all')
-    setFilterDirection('all')
+    setFilterSentiment('all')
+    setTimeRangeIndex(4)
   }
-
-  // Inline helper — returns sort icon JSX (not a component, avoids remount)
-  const sortIcon = (colKey: SortKey) =>
-    sortKey === colKey ? (
-      sortDir === 'asc' ? (
-        <ChevronUp className="h-3 w-3 shrink-0 opacity-70" />
-      ) : (
-        <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
-      )
-    ) : (
-      <ChevronDown className="h-3 w-3 shrink-0 opacity-20" />
-    )
 
   return (
     <Card id="calls">
@@ -239,58 +263,82 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
               />
             </div>
 
-            {/* Direction filter */}
-            <Select value={filterDirection} onValueChange={setFilterDirection}>
-              <SelectTrigger className="h-9 w-full sm:w-32 text-xs">
-                <SelectValue placeholder="All calls" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All calls</SelectItem>
-                <SelectItem value="inbound">↓ Inbound</SelectItem>
-                <SelectItem value="outbound">↑ Outbound</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={filterType} onValueChange={setFilterType}>
+            {/* Sort order */}
+            <Select value={sortDir} onValueChange={(v) => setSortDir(v as 'desc' | 'asc')}>
               <SelectTrigger className="h-9 w-full sm:w-36 text-xs">
-                <SelectValue placeholder="All types" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                {(Object.keys(CALL_TYPE_LABELS) as CallType[]).map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {CALL_TYPE_LABELS[type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={filterBooked} onValueChange={setFilterBooked}>
-              <SelectTrigger className="h-9 w-full sm:w-32 text-xs">
-                <SelectValue placeholder="All status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All status</SelectItem>
-                <SelectItem value="booked">Booked ✓</SelectItem>
-                <SelectItem value="not_booked">Not booked</SelectItem>
+                <SelectItem value="desc">From Latest</SelectItem>
+                <SelectItem value="asc">To Latest</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
       </CardHeader>
 
+      {/* Sentiment chips + time range dropdown — same row */}
+      <div className="flex items-center justify-between gap-3 px-6 pb-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          {([
+            { value: 'all',      label: 'All' },
+            { value: 'positive', label: 'Positive' },
+            { value: 'neutral',  label: 'Neutral' },
+            { value: 'negative', label: 'Negative' },
+          ] as const).map((chip) => (
+            <button
+              key={chip.value}
+              onClick={() => setFilterSentiment(chip.value)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-[11px] font-medium transition-colors duration-150',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/30',
+                filterSentiment === chip.value
+                  ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                  : 'border-[var(--brand-border)] text-[var(--brand-muted)] hover:border-[var(--brand-border)]/80 hover:text-[var(--brand-text)]',
+              )}
+            >
+              {chip.value !== 'all' && (
+                <span className={cn('inline-block h-1.5 w-1.5 rounded-full mr-1.5 align-middle', {
+                  'bg-emerald-500': chip.value === 'positive',
+                  'bg-gray-400':    chip.value === 'neutral',
+                  'bg-rose-500':    chip.value === 'negative',
+                })} />
+              )}
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Time range dropdown */}
+        <Select
+          value={String(timeRangeIndex)}
+          onValueChange={(v) => setTimeRangeIndex(Number(v))}
+        >
+          <SelectTrigger className="h-8 w-[130px] text-xs shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIME_RANGES.map((r, i) => (
+              <SelectItem key={i} value={String(i)} className="text-xs">
+                {r.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <CardContent className="p-0">
         {isEmpty ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand-border)]/50">
+          <div className={polish.emptyState}>
+            <div className={polish.emptyIcon}>
               <Phone className="h-6 w-6 text-[var(--brand-muted)] opacity-50" />
             </div>
             <div>
-              <p className="text-sm font-medium text-[var(--brand-muted)]">No calls found</p>
-              <p className="text-xs text-[var(--brand-muted)] opacity-60 mt-1">
+              <p className="text-sm font-semibold text-[var(--brand-text)]">No calls found</p>
+              <p className="text-xs text-[var(--brand-muted)] opacity-60 mt-1 max-w-[280px] mx-auto">
                 {hasActiveFilters
-                  ? 'Try adjusting your filters'
-                  : 'Calls will appear here after your AI receptionist handles them'}
+                  ? 'No calls match your current filters — try broadening your search'
+                  : 'Calls will appear here once your AI receptionist handles them'}
               </p>
             </div>
             {hasActiveFilters && (
@@ -300,7 +348,7 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                 onClick={clearFilters}
                 className="text-xs"
               >
-                Clear filters
+                Clear all filters
               </Button>
             )}
           </div>
@@ -310,45 +358,21 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {/* Sortable: Time */}
-                    <TableHead
-                      className="w-32 cursor-pointer select-none"
-                      onClick={() => handleSort('created_at')}
-                    >
-                      <span className="flex items-center gap-1">
-                        Time
-                        {sortIcon('created_at')}
-                      </span>
-                    </TableHead>
+                    {/* Sentiment */}
+                    <TableHead className="w-28">Sentiment</TableHead>
 
+                    {/* Title / Caller */}
                     <TableHead>Title / Caller</TableHead>
-                    <TableHead className="w-28">Type</TableHead>
-                    <TableHead className="w-16 text-center">Lead</TableHead>
-                    <TableHead className="w-20 text-center">Booked</TableHead>
 
-                    {/* Sortable: Revenue */}
-                    <TableHead
-                      className="w-28 text-right cursor-pointer select-none"
-                      onClick={() => handleSort('potential_revenue')}
-                    >
-                      <span className="flex items-center justify-end gap-1">
-                        {sortIcon('potential_revenue')}
-                        Revenue
-                      </span>
-                    </TableHead>
+                    {/* Time */}
+                    <TableHead className="w-32">Time</TableHead>
 
-                    {/* Sortable: Duration */}
-                    <TableHead
-                      className="w-20 text-right cursor-pointer select-none"
-                      onClick={() => handleSort('duration_seconds')}
-                    >
-                      <span className="flex items-center justify-end gap-1">
-                        {sortIcon('duration_seconds')}
-                        Duration
-                      </span>
-                    </TableHead>
+                    {/* Type */}
+                    <TableHead className="w-32 hidden sm:table-cell">Type</TableHead>
 
-                    <TableHead className="w-16 text-center">Audio</TableHead>
+                    {/* Duration */}
+                    <TableHead className="w-20 text-right hidden md:table-cell">Duration</TableHead>
+
                     <TableHead className="w-8"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -356,11 +380,10 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                   {visible.map((log) => {
                     const isExpanded = expandedId === log.id
                     const typeColor = callTypeColors[log.call_type ?? 'other'] ?? 'muted'
-
                     return (
                       <Fragment key={log.id}>
                         <TableRow
-                          className="cursor-pointer"
+                          className="group cursor-pointer focus-visible:bg-[var(--brand-primary)]/[0.04] focus-visible:outline-none"
                           onClick={() => {
                             if (onSelectCall) {
                               onSelectCall(log)
@@ -379,25 +402,24 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                           role="button"
                           aria-expanded={onSelectCall ? undefined : isExpanded}
                         >
-                          {/* Time */}
-                          <TableCell className="text-xs text-[var(--brand-muted)]">
-                            <div>{format(parseISO(log.created_at), 'MMM d')}</div>
-                            <div className="opacity-70">{format(parseISO(log.created_at), 'h:mm a')}</div>
+                          {/* Sentiment */}
+                          <TableCell>
+                            <SentimentPill sentiment={log.sentiment} />
                           </TableCell>
 
                           {/* Title + caller */}
                           <TableCell>
                             <Link
                               href={`/dashboard/call-logs/${log.id}`}
-                              className="font-medium text-sm text-[var(--brand-text)] leading-tight hover:text-[var(--brand-primary)] transition-colors"
+                              className="font-medium text-sm text-[var(--brand-text)] leading-tight hover:text-[var(--brand-primary)] hover:underline underline-offset-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/30 rounded-sm"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              {log.semantic_title || 'Untitled call'}
+                              <Hl text={log.semantic_title || log.caller_name || log.caller_phone || 'Unknown caller'} query={search} />
                             </Link>
                             {(log.caller_name || log.caller_phone) && (
                               <div className="text-xs text-[var(--brand-muted)] mt-0.5">
-                                {log.caller_name && <span>{log.caller_name} · </span>}
-                                {log.caller_phone}
+                                {log.caller_name && <span><Hl text={log.caller_name} query={search} /> · </span>}
+                                {log.caller_phone && <Hl text={log.caller_phone} query={search} />}
                               </div>
                             )}
                             {/* AI summary 1-liner preview */}
@@ -406,8 +428,18 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                                 {log.ai_summary ?? log.summary}
                               </p>
                             )}
-                            {/* Indicator badges + tags */}
+                            {/* Content indicator micro-badges */}
                             <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                              {log.is_booked && (
+                                <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-950/30 dark:border-emerald-800/40 dark:text-emerald-400">
+                                  ✓ Booked
+                                </span>
+                              )}
+                              {log.outbound_type === 'follow_up' && (
+                                <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:bg-amber-950/30 dark:border-amber-800/40 dark:text-amber-400">
+                                  Follow-up
+                                </span>
+                              )}
                               {log.recording_url && (
                                 <span className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium bg-violet-100 text-violet-600 dark:bg-violet-950/30 dark:text-violet-400" title="Recording available">
                                   <Mic className="h-2.5 w-2.5" />
@@ -436,80 +468,61 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                             </div>
                           </TableCell>
 
-                          {/* Call type + direction indicator */}
-                          <TableCell>
+                          {/* Time */}
+                          <TableCell className="text-xs text-[var(--brand-muted)]">
+                            <div>{format(parseISO(log.created_at), 'MMM d')}</div>
+                            <div className="opacity-70">{format(parseISO(log.created_at), 'h:mm a')}</div>
+                          </TableCell>
+
+                          {/* Type — direction + call type */}
+                          <TableCell className="hidden sm:table-cell">
                             <div className="flex flex-col gap-1">
-                              <Badge variant={typeColor} className="text-xs w-fit">
-                                {CALL_TYPE_LABELS[log.call_type as CallType] ?? log.call_type ?? 'Unknown'}
-                              </Badge>
-                              {log.direction && (
-                                <span className="flex items-center gap-0.5 text-[10px] text-[var(--brand-muted)]">
+                              {log.direction ? (
+                                <span className="flex items-center gap-0.5 text-xs font-medium text-[var(--brand-text)]">
                                   {log.direction === 'inbound' ? (
                                     <>
-                                      <ArrowDownLeft className="h-2.5 w-2.5 text-[var(--brand-primary)]" />
+                                      <ArrowDownLeft className="h-3 w-3 text-[var(--brand-primary)] shrink-0" />
                                       Inbound
                                     </>
                                   ) : (
                                     <>
-                                      <ArrowUpRight className="h-2.5 w-2.5 text-amber-500" />
+                                      <ArrowUpRight className="h-3 w-3 text-amber-500 shrink-0" />
                                       Outbound
                                     </>
                                   )}
                                 </span>
+                              ) : null}
+                              {log.call_type && (
+                                <Badge variant={typeColor} className="text-[10px] w-fit py-0">
+                                  {CALL_TYPE_LABELS[log.call_type as CallType] ?? log.call_type}
+                                </Badge>
                               )}
                             </div>
                           </TableCell>
 
-                          {/* Lead */}
-                          <TableCell className="text-center">
-                            {log.is_lead ? (
-                              <span className="text-[var(--brand-primary)] text-sm">✓</span>
-                            ) : (
-                              <span className="text-[var(--brand-muted)] text-sm opacity-30">—</span>
-                            )}
-                          </TableCell>
-
-                          {/* Booked */}
-                          <TableCell className="text-center">
-                            {log.is_booked ? (
-                              <Badge variant="success" className="text-xs">Booked</Badge>
-                            ) : (
-                              <span className="text-[var(--brand-muted)] text-sm opacity-30">—</span>
-                            )}
-                          </TableCell>
-
-                          {/* Revenue */}
-                          <TableCell className="text-right text-sm tabular-nums">
-                            {log.potential_revenue > 0 ? (
-                              <span className="text-[var(--brand-text)] font-medium">
-                                {formatCurrency(log.potential_revenue)}
-                              </span>
-                            ) : (
-                              <span className="text-[var(--brand-muted)] opacity-30">—</span>
-                            )}
-                          </TableCell>
-
                           {/* Duration */}
-                          <TableCell className="text-right text-xs text-[var(--brand-muted)]">
-                            {log.duration_seconds > 0 ? formatDuration(log.duration_seconds) : '—'}
-                          </TableCell>
-
-                          {/* Audio player — stopPropagation so row expand isn't triggered */}
-                          <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                            {log.recording_url ? (
-                              <button
-                                className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--brand-primary)]/20 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/30 transition-colors mx-auto"
-                                onClick={() => {
-                                  const willPlay = playingId !== log.id
-                                  setPlayingId(willPlay ? log.id : null)
-                                  if (willPlay) setExpandedId(log.id)
-                                }}
-                                title="Play recording"
-                              >
-                                <Play className="h-3 w-3 ml-0.5" />
-                              </button>
+                          <TableCell className="text-right text-xs text-[var(--brand-muted)] hidden md:table-cell">
+                            {log.duration_seconds > 0 ? (
+                              <div className="flex flex-col items-end gap-1">
+                                <span>{formatDuration(log.duration_seconds)}</span>
+                                {/* Audio play button — inline with duration */}
+                                {log.recording_url && (
+                                  <button
+                                    className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--brand-primary)]/20 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/30 focus-visible:ring-offset-1"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const willPlay = playingId !== log.id
+                                      setPlayingId(willPlay ? log.id : null)
+                                      if (willPlay) setExpandedId(log.id)
+                                    }}
+                                    title="Play recording"
+                                  >
+                                    <Play className="h-2.5 w-2.5 ml-0.5" />
+                                  </button>
+                                )}
+                              </div>
                             ) : (
-                              <span className="text-[var(--brand-muted)] opacity-30 text-xs">—</span>
+                              <span className="opacity-30">—</span>
                             )}
                           </TableCell>
 
@@ -530,7 +543,7 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                         {/* Expanded detail row */}
                         {isExpanded && (
                           <TableRow className="bg-[var(--brand-primary)]/[0.03] hover:bg-[var(--brand-primary)]/[0.03]">
-                            <TableCell colSpan={9} className="py-4 px-6">
+                            <TableCell colSpan={6} className="py-4 px-6">
                               <div className="space-y-4">
                                 {/* Audio inline player */}
                                 {playingId === log.id && log.recording_url && (
@@ -538,12 +551,10 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                                     <p className="text-xs font-medium text-[var(--brand-muted)] mb-1.5 uppercase tracking-wider">
                                       Recording
                                     </p>
-                                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-                                    <audio
-                                      controls
+                                    <RecordingPlayer
                                       src={log.recording_url}
-                                      className="h-8 w-full max-w-sm"
                                       autoPlay
+                                      className="max-w-sm"
                                     />
                                   </div>
                                 )}
@@ -560,9 +571,7 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                                       </Badge>
                                     )}
                                     {log.sentiment && (
-                                      <span className={`text-xs font-medium ${sentimentStyle[log.sentiment as CallSentiment]?.className ?? ''}`}>
-                                        {sentimentStyle[log.sentiment as CallSentiment]?.label ?? log.sentiment}
-                                      </span>
+                                      <SentimentPill sentiment={log.sentiment} />
                                     )}
                                     {log.intent && (
                                       <span className="text-xs text-[var(--brand-muted)]">
@@ -572,7 +581,7 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
                                   </div>
                                 )}
 
-                                {/* AI Summary (prefer ai_summary, fall back to summary) */}
+                                {/* AI Summary */}
                                 {(log.ai_summary || log.summary) && (
                                   <div>
                                     <p className="text-xs font-medium text-[var(--brand-muted)] mb-1 uppercase tracking-wider">
@@ -696,6 +705,54 @@ export function CallLogsTable({ initialData, totalCount, clientId, onSelectCall 
             )}
           </>
         )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/** Skeleton placeholder matching the call-logs table layout. */
+export function CallLogsTableSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Skeleton className="h-9 w-48 rounded-lg" />
+            <Skeleton className="h-9 w-32 rounded-lg" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {/* Header row */}
+        <div className="flex items-center gap-4 border-b border-[var(--brand-border)]/60 px-4 py-3">
+          {[70, 200, 80, 80, 60, 24].map((w, i) => (
+            <Skeleton key={i} className="h-3" style={{ width: w }} />
+          ))}
+        </div>
+        {/* Data rows */}
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-4 border-b border-[var(--brand-border)]/60 px-4 py-4"
+          >
+            <Skeleton className="h-3 w-16" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3.5 w-40" />
+              <Skeleton className="h-2.5 w-28" />
+            </div>
+            <div className="w-20 space-y-1.5">
+              <Skeleton className="h-3 w-14" />
+              <Skeleton className="h-2.5 w-12" />
+            </div>
+            <Skeleton className="h-5 w-20 rounded-full" />
+            <Skeleton className="h-3 w-10" />
+            <Skeleton className="h-4 w-4 rounded" />
+          </div>
+        ))}
       </CardContent>
     </Card>
   )

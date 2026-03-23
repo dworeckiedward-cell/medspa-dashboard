@@ -52,7 +52,7 @@ const PERIOD_CONFIG: Record<Period, { days: number; label: string }> = {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function RoiSummaryCard({ callLogs, services, currency = 'USD', config }: RoiSummaryCardProps) {
-  const [period, setPeriod] = useState<Period>('30d')
+  const [period, setPeriod] = useState<Period>('7d')
 
   const roi = useMemo(() => {
     const { days, label } = PERIOD_CONFIG[period]

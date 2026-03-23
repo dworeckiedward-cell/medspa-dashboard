@@ -31,10 +31,19 @@ export function extractTenantSlugFromRequest(
     return { slug: headerSlug.trim(), source: 'header' }
   }
 
-  // 2. Query param — localhost dev convenience
+  // 2. Query param — workspace selection redirect
   const querySlug = searchParams.get('tenant')
   if (querySlug) {
     return { slug: querySlug.trim(), source: 'query_param' }
+  }
+
+  // 3a. selected_tenant cookie — persisted after workspace selection
+  // Lets server pages (support, settings, etc.) resolve tenant without ?tenant= param
+  const cookieHeader = headers.get('cookie') ?? ''
+  const cookieMatch = cookieHeader.match(/(?:^|;\s*)selected_tenant=([^;]+)/)
+  if (cookieMatch) {
+    const cookieSlug = decodeURIComponent(cookieMatch[1]).trim()
+    if (cookieSlug) return { slug: cookieSlug, source: 'cookie' }
   }
 
   // Strip port for subdomain parsing

@@ -13,6 +13,9 @@ import {
   Bot,
   DollarSign,
   Rocket,
+  Phone,
+  Stethoscope,
+  Megaphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -100,6 +103,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
   const [createdTenantId, setCreatedTenantId] = useState<string | null>(null)
 
   // Step 1: Basics
@@ -108,6 +112,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
   const [slugManual, setSlugManual] = useState(false)
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [primaryContactEmail, setPrimaryContactEmail] = useState('')
+  const [clientType, setClientType] = useState<'clinic' | 'outbound' | 'fb_leads'>('clinic')
 
   // Step 2: AI Config (optional)
   const [retellPhoneNumber, setRetellPhoneNumber] = useState('')
@@ -141,7 +146,9 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
       setNotes('')
       setSetupFeeAmount('')
       setRetainerAmount('')
+      setClientType('clinic')
       setError(null)
+      setWarning(null)
       setSaving(false)
       setCreatedTenantId(null)
     }
@@ -163,6 +170,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
       slug: slug.trim(),
       websiteUrl: websiteUrl.trim(),
       primaryContactEmail: primaryContactEmail.trim().toLowerCase(),
+      clientType,
     }
 
     if (retellPhoneNumber.trim()) payload.retellPhoneNumber = retellPhoneNumber.trim()
@@ -189,7 +197,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
 
       if (!res.ok) {
         // Surface field-level details when available
-        let msg = data.error ?? 'Failed to create clinic'
+        let msg = data.error ?? 'Failed to create client'
         if (data.details?.fieldErrors) {
           const fields = Object.entries(data.details.fieldErrors)
             .map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`)
@@ -200,6 +208,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
       }
 
       setCreatedTenantId(data.tenantId)
+      if (data.warning) setWarning(data.warning as string)
 
       // Auto-generate prompts
       try {
@@ -212,12 +221,12 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
 
       onCreated(data.tenantId)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create clinic')
+      setError(err instanceof Error ? err.message : 'Failed to create client')
     } finally {
       setSaving(false)
     }
   }, [
-    name, slug, websiteUrl, primaryContactEmail,
+    name, slug, websiteUrl, primaryContactEmail, clientType,
     retellPhoneNumber, inboundAgentId, outboundAgentId, notes,
     setupFeeAmount, retainerAmount, onCreated,
   ])
@@ -233,7 +242,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
           <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-[var(--brand-border)] bg-[var(--brand-surface)]">
             <div>
               <Dialog.Title className="text-sm font-semibold text-[var(--brand-text)]">
-                Add New Clinic
+                Add New Client
               </Dialog.Title>
               <Dialog.Description className="text-[11px] text-[var(--brand-muted)] mt-0.5">
                 Step {step + 1} of {STEPS.length}: {currentStep.label}
@@ -284,6 +293,12 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
                 <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
+            {warning && (
+              <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 px-3 py-2">
+                <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400">Migration required</p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">{warning}</p>
+              </div>
+            )}
 
             {/* Success state */}
             {createdTenantId && (
@@ -292,7 +307,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
                   <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-[var(--brand-text)]">Clinic Created</p>
+                  <p className="text-sm font-semibold text-[var(--brand-text)]">Client Created</p>
                   <p className="text-xs text-[var(--brand-muted)] mt-1">
                     {name} has been set up. Prompts are being generated.
                   </p>
@@ -302,7 +317,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
                     Next Steps
                   </p>
                   <div className="space-y-1.5 text-left">
-                    <NextStepItem done label="Clinic created" />
+                    <NextStepItem done label="Client created" />
                     <NextStepItem done label="Prompts generated" />
                     <NextStepItem label="Copy prompts to Retell" />
                     <NextStepItem label="Paste Agent IDs back" />
@@ -316,7 +331,37 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
             {/* Step 1: Basics */}
             {step === 0 && !createdTenantId && (
               <div className="space-y-4">
-                <Field label="Clinic Name" required>
+                {/* Client Type */}
+                <Field label="Dashboard Type" hint="Determines which dashboard this client will see">
+                  <div className="grid grid-cols-3 gap-2 mt-0.5">
+                    {([
+                      { value: 'clinic', icon: Stethoscope, title: 'Inbound Clinic', desc: 'Inbound-focused dashboard with bookings, AI insights, and call logs' },
+                      { value: 'outbound', icon: Phone, title: 'Outbound DB', desc: 'Lead-calling dashboard with contact rates, funnels, and outbound KPIs' },
+                      { value: 'fb_leads', icon: Megaphone, title: 'FB Ads Leads', desc: 'Speed-to-lead dashboard with ad ROI, cost per lead, and conversion tracking' },
+                    ] as const).map(({ value, icon: Icon, title, desc }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setClientType(value)}
+                        className={cn(
+                          'flex flex-col items-start gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                          clientType === value
+                            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5'
+                            : 'border-[var(--brand-border)] hover:border-[var(--brand-primary)]/40',
+                        )}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Icon className={cn('h-3.5 w-3.5', clientType === value ? 'text-[var(--brand-primary)]' : 'text-[var(--brand-muted)]')} />
+                          <span className={cn('text-[11px] font-medium', clientType === value ? 'text-[var(--brand-primary)]' : 'text-[var(--brand-text)]')}>
+                            {title}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-[var(--brand-muted)] leading-snug">{desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Client Name" required>
                   <TextInput
                     value={name}
                     onChange={setName}
@@ -384,7 +429,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Internal notes about this clinic..."
+                    placeholder="Internal notes about this client..."
                     rows={2}
                     maxLength={2000}
                     className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs text-[var(--brand-text)] placeholder:text-[var(--brand-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] resize-none"
@@ -427,6 +472,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
               <div className="space-y-3">
                 <p className="text-xs font-semibold text-[var(--brand-text)]">Review & Create</p>
                 <div className="rounded-lg border border-[var(--brand-border)] divide-y divide-[var(--brand-border)]">
+                  <ReviewRow label="Type" value={clientType === 'outbound' ? 'Outbound DB' : clientType === 'fb_leads' ? 'FB Ads Leads' : 'Inbound Clinic'} />
                   <ReviewRow label="Name" value={name} />
                   <ReviewRow label="Slug" value={slug} mono />
                   <ReviewRow label="Website" value={websiteUrl} />
@@ -506,7 +552,7 @@ export function AddClinicWizard({ open, onOpenChange, onCreated }: AddClinicWiza
                       ) : (
                         <>
                           <Rocket className="h-3 w-3" />
-                          Create Clinic
+                          Create Client
                         </>
                       )}
                     </button>

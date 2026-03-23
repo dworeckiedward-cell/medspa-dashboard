@@ -109,13 +109,47 @@ export async function POST(request: Request) {
     )
   }
 
-  // ── Get public URL ────────────────────────────────────────────────────
+  // ── Get accessible URL ───────────────────────────────────────────────
+  // Try public URL first. If bucket is not public, fall back to a long-lived
+  // signed URL (valid for ~10 years — effectively permanent).
   const { data: urlData } = supabase.storage
     .from(BUCKET_NAME)
     .getPublicUrl(storagePath)
 
-  const publicUrl = urlData?.publicUrl
-  if (!publicUrl) {
+  let finalUrl: string | null = urlData?.publicUrl ?? null
+
+  // Verify the public URL is actually accessible (bucket may not be public)
+  if (finalUrl) {
+    try {
+      const probe = await fetch(finalUrl, { method: 'HEAD' })
+      if (!probe.ok) {
+        console.warn('[branding] Public URL returned', probe.status, '— falling back to signed URL')
+        finalUrl = null
+      }
+    } catch {
+      console.warn('[branding] Public URL unreachable — falling back to signed URL')
+      finalUrl = null
+    }
+  }
+
+  // Fallback: generate a long-lived signed URL (works even if bucket is not public)
+  if (!finalUrl) {
+    const TEN_YEARS_SEC = 10 * 365 * 24 * 60 * 60
+    const { data: signedData, error: signError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .createSignedUrl(storagePath, TEN_YEARS_SEC)
+
+    if (signError || !signedData?.signedUrl) {
+      console.error('[branding] Signed URL generation failed:', signError?.message)
+      return NextResponse.json(
+        { error: 'Upload succeeded but could not generate accessible URL. Check bucket configuration.' },
+        { status: 500 },
+      )
+    }
+    finalUrl = signedData.signedUrl
+  }
+
+  if (!finalUrl) {
     return NextResponse.json(
       { error: 'Upload succeeded but could not generate public URL' },
       { status: 500 },
@@ -123,7 +157,7 @@ export async function POST(request: Request) {
   }
 
   // ── Persist to clients.logo_url ───────────────────────────────────────
-  const result = await updateClientLogoUrl(tenant.id, publicUrl)
+  const result = await updateClientLogoUrl(tenant.id, finalUrl)
   if (!result.success) {
     return NextResponse.json(
       { error: result.error ?? 'Failed to save logo URL' },
@@ -131,5 +165,5 @@ export async function POST(request: Request) {
     )
   }
 
-  return NextResponse.json({ success: true, logoUrl: publicUrl })
+  return NextResponse.json({ success: true, logoUrl: finalUrl })
 }

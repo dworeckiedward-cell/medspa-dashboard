@@ -8,6 +8,7 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.supabase.com' },
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
+      { protocol: 'https', hostname: '*.janeapp.net' },
     ],
   },
   // Expose app domain to middleware (Edge Runtime reads process.env via this)

@@ -58,7 +58,7 @@ export function OpsUnauthorized({ email, reason }: OpsUnauthorizedProps) {
             Go to Dashboard
           </button>
           <a
-            href="mailto:support@servify.ai"
+            href="mailto:team@servifylabs.com"
             className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity duration-150"
           >
             Request Access

@@ -3,19 +3,17 @@
 /**
  * QuickActionsStrip — operator shortcut bar for common dashboard actions.
  *
- * Renders a horizontal row of quick action buttons. Each action
- * either navigates to an existing route or triggers a UI action.
- * No fake functionality — every button does something real.
+ * 4 actions max, each linking to a real working route.
  */
 
 import Link from 'next/link'
-import { Plus, Plug, BarChart3, AlertTriangle, Zap } from 'lucide-react'
+import { PhoneCall, Bell, Zap } from 'lucide-react'
 import { buildDashboardHref } from '@/lib/dashboard/link'
 
 interface QuickActionsStripProps {
   tenantSlug?: string | null
-  /** Number of failed delivery logs (shows alert badge) */
-  failedDeliveries?: number
+  /** Follow-ups needing human attention */
+  followUpCount?: number
 }
 
 interface QuickAction {
@@ -26,32 +24,21 @@ interface QuickAction {
   color: string
 }
 
-export function QuickActionsStrip({ tenantSlug, failedDeliveries = 0 }: QuickActionsStripProps) {
+export function QuickActionsStrip({ tenantSlug, followUpCount = 0 }: QuickActionsStripProps) {
   const actions: QuickAction[] = [
+    // HIDDEN: follow-up temporarily disabled
+    // {
+    //   label: 'Follow-ups',
+    //   icon: Bell,
+    //   href: '/dashboard/follow-up',
+    //   badge: followUpCount > 0 ? followUpCount : undefined,
+    //   color: followUpCount > 0 ? '#E11D48' : 'var(--brand-muted)',
+    // },
     {
-      label: 'Add Service',
-      icon: Plus,
-      href: '/dashboard/settings',
+      label: 'Call Logs',
+      icon: PhoneCall,
+      href: '/dashboard#calls',
       color: 'var(--brand-primary)',
-    },
-    {
-      label: 'Integrations',
-      icon: Plug,
-      href: '/dashboard/integrations',
-      color: '#6366F1',
-    },
-    {
-      label: 'Reports',
-      icon: BarChart3,
-      href: '/dashboard/reports',
-      color: '#10B981',
-    },
-    {
-      label: 'Failed Deliveries',
-      icon: AlertTriangle,
-      href: '/dashboard/integrations',
-      badge: failedDeliveries > 0 ? failedDeliveries : undefined,
-      color: failedDeliveries > 0 ? '#EF4444' : 'var(--brand-muted)',
     },
   ]
 

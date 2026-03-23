@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { buildTenantApiUrl } from '@/lib/dashboard/tenant-api'
 import type { ClientService } from '@/lib/types/domain'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -35,6 +36,8 @@ interface ServicesPricingManagerProps {
   /** Initial service list fetched server-side */
   initialServices: ClientService[]
   currency: string
+  /** Required for tenant-scoped API calls */
+  tenantSlug: string
 }
 
 interface FormState {
@@ -285,7 +288,7 @@ function ServiceFormDialog({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function ServicesPricingManager({ initialServices, currency }: ServicesPricingManagerProps) {
+export function ServicesPricingManager({ initialServices, currency, tenantSlug }: ServicesPricingManagerProps) {
   const [services, setServices] = useState<ClientService[]>(initialServices)
   const [busy, setBusy] = useState<string | null>(null)   // id of row being mutated
   const [listError, setListError] = useState<string | null>(null)
@@ -371,7 +374,7 @@ export function ServicesPricingManager({ initialServices, currency }: ServicesPr
 
     try {
       if (dialogMode === 'add') {
-        const res = await fetch('/api/services', {
+        const res = await fetch(buildTenantApiUrl('/api/services', tenantSlug), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(parsed.payload),
@@ -381,7 +384,7 @@ export function ServicesPricingManager({ initialServices, currency }: ServicesPr
         setServices((prev) => [...prev, json.service])
       } else {
         if (!editingId) return
-        const res = await fetch(`/api/services/${editingId}`, {
+        const res = await fetch(buildTenantApiUrl(`/api/services/${editingId}`, tenantSlug), {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(parsed.payload),
@@ -397,7 +400,7 @@ export function ServicesPricingManager({ initialServices, currency }: ServicesPr
       setSaving(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialogMode, editingId, form])
+  }, [dialogMode, editingId, form, tenantSlug])
 
   // ── Deactivate ───────────────────────────────────────────────────────────────
 
@@ -405,7 +408,7 @@ export function ServicesPricingManager({ initialServices, currency }: ServicesPr
     setBusy(id)
     setListError(null)
     try {
-      const res = await fetch(`/api/services/${id}`, { method: 'DELETE' })
+      const res = await fetch(buildTenantApiUrl(`/api/services/${id}`, tenantSlug), { method: 'DELETE' })
       if (!res.ok) {
         const json = await res.json()
         setListError(json.error ?? 'Failed to deactivate service.')
@@ -425,7 +428,7 @@ export function ServicesPricingManager({ initialServices, currency }: ServicesPr
     setBusy(id)
     setListError(null)
     try {
-      const res = await fetch(`/api/services/${id}`, {
+      const res = await fetch(buildTenantApiUrl(`/api/services/${id}`, tenantSlug), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reorder: direction }),

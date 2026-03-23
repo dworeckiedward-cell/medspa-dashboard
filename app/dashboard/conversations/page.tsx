@@ -21,7 +21,7 @@ export default async function ConversationsPage() {
   }
 
   const [conversations, kpiSummary] = await Promise.all([
-    listConversations(tenant.id, { limit: 50 }),
+    listConversations(tenant.id, { channel: 'sms', limit: 50 }),
     getConversationsKpiSummary(tenant.id),
   ])
 
@@ -34,7 +34,7 @@ export default async function ConversationsPage() {
             Conversations
           </h1>
           <p className="text-xs text-[var(--brand-muted)] mt-0.5">
-            Chat conversations from SMS, Instagram, and WhatsApp channels
+            SMS conversations with your patients and leads
           </p>
         </div>
 

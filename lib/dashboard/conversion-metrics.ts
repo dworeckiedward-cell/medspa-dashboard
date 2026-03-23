@@ -36,7 +36,11 @@ export interface ConversionFunnel {
  *  4. Booked         — is_booked = true
  *  5. Confirmed      — booked AND appointment_datetime != null
  */
-export function computeConversionFunnel(logs: CallLog[]): ConversionFunnel {
+export function computeConversionFunnel(
+  logs: CallLog[],
+  /** When false, omit Booked and Confirmed steps. Default: true */
+  showBookedSteps = true,
+): ConversionFunnel {
   const leads     = logs.filter((l) => l.is_lead)
   const contacted = leads.filter(
     (l) => l.direction === 'outbound' || l.contacted_at !== null,
@@ -45,9 +49,15 @@ export function computeConversionFunnel(logs: CallLog[]): ConversionFunnel {
   const booked    = logs.filter((l) => l.is_booked)
   const confirmed = booked.filter((l) => l.appointment_datetime !== null)
 
-  const rawCounts  = [leads.length, contacted.length, qualified.length, booked.length, confirmed.length]
-  const stepLabels = ['Lead Captured', 'Contacted', 'Qualified', 'Booked', 'Confirmed']
-  const stepKeys   = ['lead_captured', 'contacted', 'qualified', 'booked', 'confirmed']
+  const rawCounts  = showBookedSteps
+    ? [leads.length, contacted.length, qualified.length, booked.length, confirmed.length]
+    : [leads.length, contacted.length, qualified.length]
+  const stepLabels = showBookedSteps
+    ? ['Lead Captured', 'Contacted', 'Qualified', 'Booked', 'Confirmed']
+    : ['Lead Captured', 'Contacted', 'Qualified']
+  const stepKeys   = showBookedSteps
+    ? ['lead_captured', 'contacted', 'qualified', 'booked', 'confirmed']
+    : ['lead_captured', 'contacted', 'qualified']
 
   const steps: FunnelStep[] = rawCounts.map((count, i) => {
     const prevCount    = i === 0 ? null : rawCounts[i - 1]

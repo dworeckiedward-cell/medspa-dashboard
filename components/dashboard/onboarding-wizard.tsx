@@ -231,7 +231,7 @@ function ConfiguredSummaryStep() {
         <p className="text-xs text-[var(--brand-muted)]">
           Need changes to any of these settings?{' '}
           <a
-            href="mailto:support@servify.ai"
+            href="mailto:team@servifylabs.com"
             className="font-medium text-[var(--brand-text)] underline underline-offset-2 hover:text-[var(--user-accent)] transition-colors"
           >
             Contact Servify
@@ -376,7 +376,7 @@ function ReportingOverviewStep({ tenantSlug }: { tenantSlug?: string | null }) {
         <p className="text-[10px] text-[var(--brand-muted)]">
           Configured by Servify. Need changes?{' '}
           <a
-            href="mailto:support@servify.ai"
+            href="mailto:team@servifylabs.com"
             className="font-medium underline underline-offset-2 hover:text-[var(--brand-text)]"
           >
             Contact us

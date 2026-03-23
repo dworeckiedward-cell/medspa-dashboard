@@ -103,7 +103,7 @@ export function ClinicFilesPanel({
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-[var(--brand-muted)]" />
           <h3 className="text-sm font-semibold text-[var(--brand-text)]">
-            Clinic Files
+            Client Files
           </h3>
           <span className="text-[10px] text-[var(--brand-muted)]">
             {tenantName}

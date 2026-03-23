@@ -52,7 +52,7 @@ export function SidebarAccountMenu({ tenant }: SidebarAccountMenuProps) {
         const tenantIds = (memberships ?? []).map((m) => m.tenant_id).filter(Boolean)
         if (tenantIds.length > 0) {
           const { data: tenantRows } = await supabase
-            .from('tenants')
+            .from('clients')
             .select('id, name, slug, brand_color, logo_url')
             .in('id', tenantIds)
 

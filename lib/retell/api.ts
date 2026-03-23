@@ -54,44 +54,40 @@ export interface ListCallsResponse {
 
 /**
  * List recent calls from Retell API.
- * Uses POST /list-calls with filter_criteria.
+ * POST /v2/list-calls — returns a flat array of call objects.
+ *
+ * filter_criteria must be a plain object (e.g. { start_timestamp_ms: 123 }),
+ * NOT an array. Retell returns 400 if it receives an array or string.
  */
 export async function listCalls(opts: {
-  days?: number
   limit?: number
+  filterCriteria?: Record<string, unknown>
   sortOrder?: 'ascending' | 'descending'
   cursor?: string
 }): Promise<ListCallsResponse> {
   const client = getRetellClient()
-  const { days = 30, limit = 50, sortOrder = 'descending', cursor } = opts
-
-  const filterCriteria: Record<string, unknown>[] = []
-
-  if (days > 0) {
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    filterCriteria.push({
-      member: 'start_timestamp',
-      operator: 'gte',
-      value: since.getTime(),
-    })
-  }
+  const { limit = 50, filterCriteria, sortOrder = 'descending', cursor } = opts
 
   const body: Record<string, unknown> = {
     sort_order: sortOrder,
     limit,
-    filter_criteria: filterCriteria,
+  }
+
+  // filter_criteria must be a plain object — only include when non-empty
+  if (filterCriteria && Object.keys(filterCriteria).length > 0) {
+    body.filter_criteria = filterCriteria
   }
 
   if (cursor) {
     body.pagination_key = cursor
   }
 
+  // Retell returns a flat array, NOT { calls: [...] }
   const result = await client.request<RetellCall[]>('/v2/list-calls', {
     method: 'POST',
     body: JSON.stringify(body),
   })
 
-  // Retell returns an array directly; pagination key is the last call_id
   const calls = Array.isArray(result) ? result : []
   const nextCursor = calls.length === limit ? calls[calls.length - 1]?.call_id : undefined
 
@@ -118,10 +114,14 @@ export async function getCallRecording(callId: string): Promise<{ recording_url?
 
 /**
  * List all agents.
+ * POST /v2/list-agents — returns a flat array of agent objects.
  */
 export async function listAgents(): Promise<RetellAgent[]> {
   const client = getRetellClient()
-  const result = await client.request<RetellAgent[]>('/v2/list-agents')
+  const result = await client.request<RetellAgent[]>('/v2/list-agents', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
   return Array.isArray(result) ? result : []
 }
 

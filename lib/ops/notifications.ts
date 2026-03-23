@@ -16,6 +16,7 @@ export type OpsNotificationType =
   | 'missing_agent_ids'
   | 'clinic_created'
   | 'general'
+  | 'workflow_error'
 
 export interface OpsNotification {
   id: string
@@ -120,6 +121,55 @@ export async function markAllNotificationsRead(): Promise<void> {
       .eq('is_read', false)
   } catch {
     // Graceful
+  }
+}
+
+// ── Workflow error helpers ────────────────────────────────────────────────────
+
+export type WorkflowErrorSeverity = 'critical' | 'error' | 'warning' | 'info'
+
+export interface WorkflowErrorPayload {
+  workflow: string
+  errorMessage: string
+  severity: WorkflowErrorSeverity
+  tenantSlug?: string | null
+  stack?: string | null
+  timestamp: string
+}
+
+/** Get workflow error notifications (newest first) */
+export async function getWorkflowErrors(
+  limit = 50,
+  tenantId?: string,
+): Promise<(OpsNotification & { errorPayload: WorkflowErrorPayload | null })[]> {
+  try {
+    const supabase = createSupabaseServerClient()
+    let query = supabase
+      .from('ops_notifications')
+      .select('*')
+      .eq('type', 'workflow_error')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (tenantId) {
+      query = query.eq('tenant_id', tenantId)
+    }
+
+    const { data, error } = await query
+    if (error || !data) return []
+
+    return (data as unknown as OpsNotificationRow[]).map((row) => {
+      const notification = mapRow(row)
+      let errorPayload: WorkflowErrorPayload | null = null
+      try {
+        errorPayload = row.description ? JSON.parse(row.description) : null
+      } catch {
+        // Malformed — skip
+      }
+      return { ...notification, errorPayload }
+    })
+  } catch {
+    return []
   }
 }
 

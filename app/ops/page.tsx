@@ -6,7 +6,10 @@ import { deriveOpsAlerts } from '@/lib/ops/alerts'
 import { logOperatorAction } from '@/lib/ops/audit'
 import { listOpsRequests, getSupportKpiSummary } from '@/lib/support/query'
 import { getOpsNotifications, countUnreadNotifications } from '@/lib/ops/notifications'
+import { computeOpsOverviewMetrics, OPS_RANGE_OPTIONS, type OpsChartPoint } from '@/lib/ops/ops-overview-metrics'
 import { OpsKpiStrip } from '@/components/ops/ops-kpi-strip'
+import { OpsHeroChart } from '@/components/ops/ops-hero-chart'
+import { OpsNeedsAttention } from '@/components/ops/ops-needs-attention'
 import { OpsClientsTable } from '@/components/ops/ops-clients-table'
 import { OpsAlertsPanel } from '@/components/ops/ops-alerts-panel'
 import { OpsSupportInboxCard } from '@/components/ops/ops-support-inbox-card'
@@ -18,13 +21,13 @@ import { CacSourceSummaryCard } from '@/components/ops/cac-source-summary-card'
 import { AcquisitionCohortsCard } from '@/components/ops/acquisition-cohorts-card'
 import { OpsFinancialKpiStrip } from '@/components/ops/ops-financial-kpi-strip'
 import { OpsSidebarNav } from '@/components/ops/ops-sidebar-nav'
-import { OpsRevenueChart } from '@/components/ops/ops-revenue-chart'
 import { ServifyLogo } from '@/components/branding/servify-logo'
 import { getAllClientUnitEconomics } from '@/lib/ops/unit-economics/query'
 import { buildCohortRows, buildCacSourceRows } from '@/lib/ops/unit-economics/cohorts'
 import { getAllCommercialSnapshots } from '@/lib/ops-financials/query'
 import { computeOpsFinancialKpis } from '@/lib/ops-financials/compute'
 import type { ClientHealthScore } from '@/lib/ops/health-score'
+import { cn, polish } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,14 +39,7 @@ export default async function OpsConsolePage() {
     return <OpsUnauthorized email={access.email} reason={access.reason} />
   }
 
-  // ── Audit log ────────────────────────────────────────────────────────────
-  await logOperatorAction({
-    operatorId: access.userId ?? 'unknown',
-    operatorEmail: access.email,
-    action: 'ops_console_viewed',
-  })
-
-  // ── Data fetch ───────────────────────────────────────────────────────────
+  // ── Data fetch + audit log run in parallel ────────────────────────────────
   const [overviews, deliveryLogs, unitEconomics, recentRequests, supportKpi, notifications, unreadCount] = await Promise.all([
     getAllClientOverviews(),
     getAllRecentDeliveryLogs(24, 200),
@@ -52,6 +48,12 @@ export default async function OpsConsolePage() {
     getSupportKpiSummary(),
     getOpsNotifications(15, true),
     countUnreadNotifications(),
+    // Audit write runs concurrently — result unused, errors swallowed inside logOperatorAction
+    logOperatorAction({
+      operatorId: access.userId ?? 'unknown',
+      operatorEmail: access.email,
+      action: 'ops_console_viewed',
+    }),
   ])
 
   // ── Health scoring ───────────────────────────────────────────────────────
@@ -75,6 +77,7 @@ export default async function OpsConsolePage() {
 
   // ── Aggregate KPIs ───────────────────────────────────────────────────────
   const totalClients = overviews.length
+  const activeClients = overviews.filter((o) => o.client.is_active).length
   let healthyClients = 0
   let criticalClients = 0
   let totalCalls = 0
@@ -95,9 +98,13 @@ export default async function OpsConsolePage() {
       if (health.level === 'healthy') healthyClients++
       if (health.level === 'critical') criticalClients++
     }
-    totalCalls += overview.callStats.totalCalls
-    totalBookings += overview.callStats.bookedCalls
-    totalRevenue += overview.callStats.totalRevenue
+
+    // KPI stats scoped to active clients only
+    if (overview.client.is_active) {
+      totalCalls += overview.callStats.totalCalls
+      totalBookings += overview.callStats.bookedCalls
+      totalRevenue += overview.callStats.totalRevenue
+    }
   }
 
   // ── Alerts ───────────────────────────────────────────────────────────────
@@ -119,67 +126,117 @@ export default async function OpsConsolePage() {
   const commercialSnapshots = await getAllCommercialSnapshots(clients, unitEconomics)
   const financialKpis = computeOpsFinancialKpis(commercialSnapshots)
 
+  // ── Total LTV (cumulative, active clients only) ───────────────────────────
+  const activeClientIds = new Set(overviews.filter((o) => o.client.is_active).map((o) => o.client.id))
+  const totalLtv = unitEconomics
+    .filter((u) => activeClientIds.has(u.clientId))
+    .reduce((sum, u) => sum + u.totalCollectedLtv, 0)
+
+  // ── Chart series (all ranges, for client-side switching) ─────────────────
+  const chartBaseOpts = {
+    totalClients: activeClients,
+    healthyClients,
+    criticalClients,
+    totalCalls,
+    totalBookings,
+    totalRevenue,
+    activeMrr: financialKpis.activeMrr,
+    healthScores,
+    unitEconomics,
+  }
+  const chartSeriesByRange: Record<number, OpsChartPoint[]> = {}
+  for (const r of OPS_RANGE_OPTIONS) {
+    chartSeriesByRange[r] = computeOpsOverviewMetrics({ ...chartBaseOpts, rangeDays: r }).series
+  }
+  const chartIsEstimated = true
+
+  // ── Inactive client count (no calls in 30d, onboarding complete) ────────
+  const inactiveClients = overviews.filter((o) => {
+    const health = healthScores.get(o.client.id)
+    return o.callStats.totalCalls === 0 && o.onboardingComplete && health?.level !== 'onboarding'
+  }).length
+
+  const criticalAlertCount = alerts.filter((a) => a.severity === 'critical').length
+  const openRequestCount = recentRequests.length
+
   return (
-    <div className="min-h-screen bg-[var(--brand-bg)]">
+    <div className="min-h-screen bg-[#0a0a0f]">
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 sm:px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 h-14 flex items-center border-b border-[#1e1e2e] bg-[#0a0a0f]/90 backdrop-blur-xl px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm border border-gray-100">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#6366f1]/10 border border-[#6366f1]/30 shrink-0">
               <ServifyLogo size="md" />
             </div>
-            <div>
-              <h1 className="text-lg font-semibold text-[var(--brand-text)] tracking-tight">
-                Servify OS
-              </h1>
-              <p className="text-[11px] text-[var(--brand-muted)] mt-0.5">
-                Operator Console — {totalClients} active client{totalClients !== 1 ? 's' : ''}
-              </p>
+            <div className="flex items-center gap-2">
+              <span className="text-[14px] font-bold text-[#f0f0f5] tracking-tight">Servify OS</span>
+              <span className="text-[#71717a] text-[13px]">·</span>
+              <span className="text-[12px] text-[#71717a]">
+                {activeClients} active client{activeClients !== 1 ? 's' : ''}
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[var(--brand-muted)]">
+          <div className="flex items-center gap-2.5">
+            <span className="hidden sm:inline text-[11px] text-[#71717a]">
               {access.email ?? 'Operator'}
             </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 font-medium">
+            <div className="hidden sm:block h-4 w-px bg-[#1e1e2e]" />
+            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#6366f1]/15 text-[#818cf8] font-medium border border-[#6366f1]/20">
               {access.grantedVia === 'dev_mode' ? 'Dev Mode' : 'Admin'}
             </span>
             <OpsHeaderActions
               notifications={notifications}
               unreadCount={unreadCount}
+              clinics={overviews.map((o) => ({
+                id: o.client.id,
+                name: o.client.name,
+                slug: o.client.slug,
+                brand_color: o.client.brand_color,
+              }))}
             />
           </div>
         </div>
       </header>
 
       {/* ── Content with sidebar ────────────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 flex gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-7 flex gap-6">
         <OpsSidebarNav email={access.email} />
 
-        <div className="min-w-0 flex-1 space-y-4 sm:space-y-6">
-          {/* 1. KPI strip */}
+        <div className="min-w-0 flex-1 space-y-5">
+          {/* ═══════════════ ABOVE THE FOLD ═══════════════ */}
+
+          {/* 1. KPI strip — 6 focused cards */}
           <section id="overview">
             <OpsKpiStrip
-              totalClients={totalClients}
+              totalClients={activeClients}
               healthyClients={healthyClients}
               criticalClients={criticalClients}
               totalCalls={totalCalls}
               totalBookings={totalBookings}
-              totalRevenue={totalRevenue}
+              totalLtv={totalLtv}
               activeMrr={financialKpis.activeMrr}
               collectedThisMonth={financialKpis.collectedThisMonth}
             />
           </section>
 
-          {/* 2. Revenue Chart */}
-          <OpsRevenueChart
-            activeMrr={financialKpis.activeMrr}
-            collectedThisMonth={financialKpis.collectedThisMonth}
+          {/* 2. Hero Chart — 3 views, 5 ranges */}
+          <OpsHeroChart
+            seriesByRange={chartSeriesByRange}
+            isEstimated={chartIsEstimated}
           />
 
-          {/* 3. Triage Row — Alerts + Support Inbox */}
+          {/* 3. Needs Attention — compact triage panel */}
+          <OpsNeedsAttention
+            criticalAlerts={criticalAlertCount}
+            openRequests={openRequestCount}
+            inactiveClients={inactiveClients}
+          />
+
+          {/* ═══════════════ BELOW THE FOLD ═══════════════ */}
+
+          {/* 4. Triage Row — Alerts + Support Inbox */}
           <section id="alerts">
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <OpsAlertsPanel alerts={alerts} />
               </div>
@@ -189,11 +246,9 @@ export default async function OpsConsolePage() {
             </div>
           </section>
 
-          {/* 4. All Clients table */}
+          {/* 5. All Clients table */}
           <section id="clients">
-            <h2 className="text-sm font-semibold text-[var(--brand-text)] mb-3">
-              All Clients
-            </h2>
+            <h2 className={cn(polish.sectionTitle, 'mb-3')}>All Clients</h2>
             <OpsClientsTable
               overviews={overviews}
               healthScores={new Map(healthScoresArray)}
@@ -202,9 +257,9 @@ export default async function OpsConsolePage() {
             />
           </section>
 
-          {/* 5. Usage + Health distribution */}
+          {/* 6. Usage + Health distribution */}
           <section id="usage">
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <OpsUsageWatchlist />
               </div>
@@ -214,52 +269,19 @@ export default async function OpsConsolePage() {
             </div>
           </section>
 
-          {/* 6. AI Control Watchlist */}
+          {/* 7. AI Control Watchlist */}
           <OpsAiControlWatchlist />
 
-          {/* 7. Financial Overview KPIs */}
+          {/* 8. Financial Overview KPIs */}
           <section id="financials">
             <OpsFinancialKpiStrip kpis={financialKpis} />
           </section>
 
-          {/* 8. Unit Economics — CAC by Source + Acquisition Cohorts */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* 9. Unit Economics — CAC by Source + Acquisition Cohorts */}
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
             <CacSourceSummaryCard rows={cacSourceRows} />
             <AcquisitionCohortsCard rows={cohortRows} />
           </div>
-
-          {/* 9. Quick links */}
-          <section id="partners">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <a
-                href="/ops/alerts"
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-medium text-[var(--brand-text)] hover:border-rose-400/50 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-                </svg>
-                Alerts Console
-              </a>
-              <a
-                href="/ops/requests"
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-medium text-[var(--brand-text)] hover:border-blue-400/50 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                </svg>
-                Support Requests
-              </a>
-              <a
-                href="/ops/partners"
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-2 text-sm font-medium text-[var(--brand-text)] hover:border-violet-400/50 hover:text-violet-600 dark:hover:text-violet-400 transition-colors"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-                </svg>
-                Partner Console
-              </a>
-            </div>
-          </section>
         </div>
       </div>
     </div>

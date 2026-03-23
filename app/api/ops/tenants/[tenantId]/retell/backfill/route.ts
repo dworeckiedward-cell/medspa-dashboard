@@ -4,6 +4,11 @@
  * Fetches calls from Retell API for the given tenant, normalizes them
  * via ingestRetellCall(), and upserts into call_logs.
  *
+ * Enrichment: when a call from listCalls() is missing recording_url,
+ * transcript, or call_analysis.call_summary, we fetch the full call
+ * via getCall() to get the complete data (Retell may populate these
+ * fields asynchronously after the call ends).
+ *
  * Auth (two paths):
  *   1. Operator session (resolveOperatorAccess)
  *   2. Server key header (x-ops-key / Authorization: Bearer)
@@ -17,7 +22,7 @@ import { NextResponse } from 'next/server'
 import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
 import { verifyOpsServerKey } from '@/lib/ops/server-key-auth'
 import { logOperatorAction } from '@/lib/ops/audit'
-import { listCalls } from '@/lib/retell/api'
+import { listCalls, getCall, type RetellCall } from '@/lib/retell/api'
 import { ingestRetellCall } from '@/lib/retell/ingest'
 
 export const dynamic = 'force-dynamic'
@@ -81,23 +86,66 @@ export async function POST(
   try {
     let totalFetched = 0
     let totalUpserted = 0
+    let totalEnriched = 0
     let totalErrors = 0
     let cursor: string | undefined
 
+    // Build filter_criteria as a plain object (Retell rejects arrays)
+    const startTimestampMs = Date.now() - days * 86_400_000
+    const filterCriteria = { start_timestamp_ms: startTimestampMs }
+
     // Paginate through Retell calls
     do {
-      const page = await listCalls({ days, limit, sortOrder: 'descending', cursor })
+      const page = await listCalls({ limit, filterCriteria, sortOrder: 'descending', cursor })
 
       totalFetched += page.calls.length
 
-      for (const call of page.calls) {
-        const result = await ingestRetellCall(call, tenantId)
-        if (result.ok) {
-          totalUpserted++
-        } else {
-          totalErrors++
-          if (process.env.NODE_ENV !== 'production') {
-            console.warn('[backfill] Ingest error:', result.error, call.call_id)
+      // Process calls with concurrency limit of 3
+      const CONCURRENCY = 3
+      for (let i = 0; i < page.calls.length; i += CONCURRENCY) {
+        const batch = page.calls.slice(i, i + CONCURRENCY)
+        const results = await Promise.allSettled(
+          batch.map(async (call) => {
+            let enriched = false
+            let finalCall: RetellCall = call
+
+            // Enrich via getCall() if list response is missing key fields
+            const needsEnrich =
+              !call.recording_url ||
+              !call.transcript ||
+              !call.call_analysis?.call_summary
+
+            if (needsEnrich && call.call_id) {
+              try {
+                finalCall = await getCall(call.call_id)
+                enriched = true
+              } catch {
+                // getCall failed — proceed with partial data from list
+                finalCall = call
+              }
+            }
+
+            const result = await ingestRetellCall(finalCall, tenantId)
+            return { result, enriched }
+          }),
+        )
+
+        for (const settled of results) {
+          if (settled.status === 'fulfilled') {
+            if (settled.value.result.ok) {
+              totalUpserted++
+              if (settled.value.enriched) totalEnriched++
+            } else {
+              totalErrors++
+              if (DEBUG) {
+                console.warn('[backfill] Ingest error:', settled.value.result.error)
+              }
+            }
+          } else {
+            totalErrors++
+            if (DEBUG) {
+              console.warn('[backfill] Promise rejected:', settled.reason)
+            }
           }
         }
       }
@@ -111,7 +159,7 @@ export async function POST(
       operatorEmail,
       action: 'retell_backfill',
       targetClientId: tenantId,
-      metadata: { days, totalFetched, totalUpserted, totalErrors, authMethod },
+      metadata: { days, totalFetched, totalUpserted, totalEnriched, totalErrors, authMethod },
     }).catch(() => {})
 
     return NextResponse.json({
@@ -119,6 +167,7 @@ export async function POST(
       days,
       totalFetched,
       totalUpserted,
+      totalEnriched,
       totalErrors,
     })
   } catch (err) {

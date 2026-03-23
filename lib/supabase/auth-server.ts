@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createSupabaseServerClient } from './server'
+import { enrichTenantsWithBranding } from '@/lib/tenant/get-tenant-config'
 import type { Client } from '@/types/database'
 
 /**
@@ -127,8 +128,11 @@ export async function getAuthenticatedUser(): Promise<AuthenticatedUserResult | 
       return null
     }
 
+    // Enrich with branding from clients table (logo_url, brand_color, accent_color)
+    const enrichedRows = await enrichTenantsWithBranding(tenantRows ?? [])
+
     // Merge: preserve membership ordering (created_at ascending from step 2a)
-    const tenantMap = new Map((tenantRows ?? []).map((t) => [t.id, t]))
+    const tenantMap = new Map(enrichedRows.map((t) => [t.id, t]))
     const tenants: Client[] = tenantIds
       .map((id) => tenantMap.get(id) as Client | undefined)
       .filter((t): t is Client => t != null)

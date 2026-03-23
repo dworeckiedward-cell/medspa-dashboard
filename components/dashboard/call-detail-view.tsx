@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   ArrowLeft,
   Clock,
-  DollarSign,
   Phone,
   PhoneIncoming,
   PhoneOutgoing,
@@ -19,8 +19,12 @@ import {
   Mic,
   TrendingUp,
   AlertTriangle,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { RecordingPlayer } from './recording-player'
+import { AiFollowupDraft } from './ai-followup-draft'
 import type { CallLog } from '@/types/database'
 import { CALL_DISPOSITION_LABELS, CALL_INTENT_LABELS } from '@/types/database'
 
@@ -127,8 +131,28 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 
 export function CallDetailView({ callLog }: CallDetailViewProps) {
   const [activeTab, setActiveTab] = useState<'transcript' | 'raw'>('transcript')
+  const [refreshing, setRefreshing] = useState(false)
+  const router = useRouter()
 
   const c = callLog
+
+  async function handleRefreshFromRetell() {
+    if (!c.external_call_id || refreshing) return
+    setRefreshing(true)
+    try {
+      const res = await fetch(
+        `/api/ops/tenants/${c.client_id}/retell/calls/${c.external_call_id}/refresh`,
+      )
+      if (res.ok) {
+        // Reload the page to show updated data
+        router.refresh()
+      }
+    } catch {
+      // silently fail — operator can retry
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   // Safe field mappings — prefer production columns, fall back gracefully
   const startTime = c.contacted_at ?? c.created_at
@@ -176,9 +200,8 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
       </div>
 
       {/* ── KPI Strip ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <KpiCard icon={Clock} label="Duration" value={formatDuration(c.duration_seconds)} />
-        <KpiCard icon={DollarSign} label="Cost" value={deriveCost(c)} />
         <KpiCard
           icon={c.direction === 'outbound' ? PhoneOutgoing : PhoneIncoming}
           label="Direction"
@@ -208,13 +231,11 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
       <Card title="Call Recording" icon={Mic}>
         {c.recording_url ? (
           <div className="space-y-3">
-            <audio controls preload="metadata" className="w-full h-10">
-              <source src={c.recording_url} />
-              Your browser does not support audio playback.
-            </audio>
+            <RecordingPlayer src={c.recording_url} />
             <a
               href={c.recording_url}
-              download
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
@@ -222,11 +243,29 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
             </a>
           </div>
         ) : (
-          <p className="text-xs text-[var(--brand-muted)] italic">
-            No recording available for this call.
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-[var(--brand-muted)] italic">
+              No recording available for this call.
+            </p>
+            {c.external_call_id && (
+              <button
+                onClick={handleRefreshFromRetell}
+                disabled={refreshing}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors disabled:opacity-50"
+              >
+                {refreshing
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <RefreshCw className="h-3.5 w-3.5" />}
+                Refresh Call Recording
+              </button>
+            )}
+          </div>
         )}
       </Card>
+
+
+      {/* ── AI Follow-up Draft ──────────────────────────────────────────── */}
+      <AiFollowupDraft callLog={c} />
 
       {/* ── AI Summary ───────────────────────────────────────────────────── */}
       <Card title="AI Summary" icon={Brain}>
@@ -249,10 +288,9 @@ export function CallDetailView({ callLog }: CallDetailViewProps) {
 
       {/* ── Outcome ──────────────────────────────────────────────────────── */}
       <Card title="Outcome" icon={TrendingUp}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <OutcomeStat label="Booked Value" value={formatCurrency(c.booked_value)} />
           <OutcomeStat label="Potential Revenue" value={formatCurrency(c.potential_revenue)} />
-          <OutcomeStat label="Lead Confidence" value={formatPercent(c.lead_confidence)} />
         </div>
 
         {c.human_followup_needed && (

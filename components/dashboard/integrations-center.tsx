@@ -251,20 +251,20 @@ function AddIntegrationCards({ onAdd }: { onAdd: (provider: IntegrationProvider)
         })}
       </div>
 
-      {/* MedSpa connector presets — coming soon */}
+      {/* Practice Management connector presets — coming soon */}
       <div className="rounded-xl border border-[var(--brand-border)] p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-[var(--brand-text)] flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-[var(--brand-accent)]" />
-              MedSpa Software Connectors
+              Practice Management Connectors
             </p>
             <p className="text-[10px] text-[var(--brand-muted)] mt-0.5">
               Native integrations on the roadmap. Use Custom Webhook in the meantime.
             </p>
           </div>
           <a
-            href="mailto:support@servify.ai?subject=Native%20Connector%20Request"
+            href="mailto:team@servifylabs.com?subject=Native%20Connector%20Request"
             className="shrink-0 text-[10px] font-medium text-[var(--brand-primary)] hover:underline"
           >
             Request connector

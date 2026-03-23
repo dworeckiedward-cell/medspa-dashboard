@@ -1,6 +1,6 @@
 # n8n Event Ingest Contract
 
-This document is the single source of truth for what n8n sends to the MedSpa Dashboard backend. Every GoHighLevel / Retell webhook that you want reflected in the dashboard must be translated to one of the shapes below and forwarded to the ingest endpoint.
+This document is the single source of truth for what n8n sends to the Dashboard backend. Every GoHighLevel / Retell webhook that you want reflected in the dashboard must be translated to one of the shapes below and forwarded to the ingest endpoint.
 
 ---
 
@@ -195,8 +195,75 @@ Fires when a booking/scheduling link is dispatched to a contact (typically after
 | `call_ended` (`in_voicemail: false`) | — | — | — | +1 | — | — |
 | `call_ended` (`in_voicemail: true`) | — | — | — | — | — | — |
 | `booking_link_sent` | — | — | — | — | +1 | — |
+| `payment_confirmed` | — | — | — | — | — | — |
+| `campaign_completed` | — | — | — | — | — | — |
 
 > `avgSpeedSec` for a day is the mean of all `meta.speed_to_lead_sec` values from `lead_created` events on that calendar day (UTC).
+
+---
+
+### `payment_confirmed`
+
+Fires when a Stripe Checkout Session is completed (deposit paid).
+
+```json
+{
+  "clientSlug": "live-younger",
+  "type": "payment_confirmed",
+  "ts": "2026-03-06T15:00:00Z",
+  "phone": "+14035551234",
+  "meta": {
+    "stripe_session_id": "cs_live_xxx",
+    "amount_cents": 5000,
+    "currency": "cad",
+    "jane_appointment_id": "12345"
+  }
+}
+```
+
+**`meta` fields:**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `stripe_session_id` | string | **Yes** | Stripe checkout session ID |
+| `amount_cents` | number | **Yes** | Deposit amount in minor units |
+| `currency` | string | **Yes** | ISO 4217 currency code |
+| `jane_appointment_id` | string | No | Jane App appointment ID |
+
+**Dashboard effect:** Logs payment confirmation. Used for deposit tracking.
+
+---
+
+### `campaign_completed`
+
+Fires when a reactivation campaign finishes all calls.
+
+```json
+{
+  "clientSlug": "live-younger",
+  "type": "campaign_completed",
+  "ts": "2026-03-06T18:00:00Z",
+  "meta": {
+    "campaign_name": "Spring Promo 2026",
+    "total_called": 45,
+    "answered": 32,
+    "booked": 8,
+    "not_interested": 12
+  }
+}
+```
+
+**`meta` fields:**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `campaign_name` | string | **Yes** | Campaign identifier |
+| `total_called` | number | **Yes** | Total outbound calls made |
+| `answered` | number | **Yes** | Calls answered by patient |
+| `booked` | number | **Yes** | Appointments booked |
+| `not_interested` | number | No | Patients who declined |
+
+**Dashboard effect:** Logs campaign summary. Displayed in Campaigns tab.
 
 ---
 

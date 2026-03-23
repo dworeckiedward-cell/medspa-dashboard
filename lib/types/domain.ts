@@ -13,20 +13,34 @@
 export type ContactStatus =
   | 'new'
   | 'contacted'
-  | 'interested'
+  | 'booking_link_sent'
+  | 'clicked_link'
   | 'booked'
   | 'lost'
+  | 'interested'
   | 'reactivation'
+  | 'queued'
+  | 'not_interested'
+  | 'followup_needed'
+  | 'callback'
+  | 'follow_up_exhausted'
 
 export type ContactOwnerType = 'ai' | 'human'
 
 export const CONTACT_STATUS_LABELS: Record<ContactStatus, string> = {
-  new: 'New',
-  contacted: 'Contacted',
-  interested: 'Interested',
+  new: 'New Lead',
+  contacted: 'Reached',
+  booking_link_sent: 'Link Sent',
+  clicked_link: 'Opened Link',
   booked: 'Booked',
   lost: 'Lost',
-  reactivation: 'Reactivation',
+  interested: 'Interested',
+  reactivation: 'Re-engage',
+  queued: 'Queued',
+  not_interested: 'Not Interested',
+  followup_needed: 'Follow-up',
+  callback: 'Callback',
+  follow_up_exhausted: 'Exhausted',
 }
 
 export interface Contact {
@@ -44,6 +58,10 @@ export interface Contact {
   nextActionAt: string | null
   createdAt: string
   updatedAt: string
+
+  // Lead-management fields
+  notes?: string | null
+  bookingLinkClickedAt?: string | null
 
   // Joined / computed — populated when fetching detail
   latestCallSummary?: CallSummary | null
@@ -78,7 +96,7 @@ export interface CallLogEntry {
 
 export interface StructuredSummary {
   intent: string | null
-  sentiment: 'positive' | 'neutral' | 'negative' | null
+  sentiment: 'positive' | 'neutral' | 'negative' | 'follow_up' | null
   urgency: 'high' | 'medium' | 'low' | null
   objections: string[]
   outcome: string | null
@@ -96,7 +114,7 @@ export interface CallSummary {
   model: string | null
   plainSummary: string
   structuredSummary: StructuredSummary | null
-  sentiment: 'positive' | 'neutral' | 'negative' | null
+  sentiment: 'positive' | 'neutral' | 'negative' | 'follow_up' | null
   urgency: 'high' | 'medium' | 'low' | null
   createdAt: string
 }
@@ -132,6 +150,7 @@ export interface FollowUpTask {
   suggestedAction: string | null
   suggestedScript: string | null
   assignedTo: string | null
+  bookingLinkSent?: boolean
   createdAt: string
   updatedAt: string
 
@@ -168,6 +187,7 @@ export type IntegrationProvider =
   | 'hubspot'
   | 'ghl'
   | 'pipedrive'
+  | 'jane_app'
 
 export type IntegrationStatus = 'active' | 'inactive' | 'error' | 'pending_setup'
 

@@ -25,6 +25,7 @@ import {
   BarChart3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { buildDashboardHref } from '@/lib/dashboard/link'
 import type { Client } from '@/types/database'
 
 // ── Command definition ────────────────────────────────────────────────────────
@@ -104,7 +105,7 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Overview',
       description: 'Dashboard home — KPIs, chart, call logs',
       icon: LayoutDashboard,
-      action: () => router.push('/dashboard'),
+      action: () => router.push(buildDashboardHref('/dashboard', slug)),
       keywords: ['home', 'main', 'overview', 'kpi', 'dashboard'],
     },
     {
@@ -112,7 +113,7 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Leads',
       description: 'Lead management and pipeline',
       icon: Users,
-      action: () => router.push('/dashboard/leads'),
+      action: () => router.push(buildDashboardHref('/dashboard/leads', slug)),
       keywords: ['leads', 'pipeline', 'contacts', 'prospects'],
     },
     {
@@ -120,23 +121,24 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Call Logs',
       description: 'View and search all call records',
       icon: Phone,
-      action: () => router.push('/dashboard/call-logs'),
+      action: () => router.push(buildDashboardHref('/dashboard/call-logs', slug)),
       keywords: ['calls', 'logs', 'records', 'phone', 'history'],
     },
-    {
-      id: 'follow-up',
-      label: 'Follow-up',
-      description: 'Calls needing human follow-up',
-      icon: Bell,
-      action: () => router.push('/dashboard/follow-up'),
-      keywords: ['follow', 'callback', 'pending', 'todo', 'queue'],
-    },
+    // HIDDEN: follow-up temporarily disabled
+    // {
+    //   id: 'follow-up',
+    //   label: 'Follow-up',
+    //   description: 'Calls needing human follow-up',
+    //   icon: Bell,
+    //   action: () => router.push(buildDashboardHref('/dashboard/follow-up', slug)),
+    //   keywords: ['follow', 'callback', 'pending', 'todo', 'queue'],
+    // },
     {
       id: 'conversations',
       label: 'Conversations',
       description: 'Chat and messaging threads',
       icon: MessageSquare,
-      action: () => router.push('/dashboard/conversations'),
+      action: () => router.push(buildDashboardHref('/dashboard/conversations', slug)),
       keywords: ['chat', 'messages', 'conversations', 'sms', 'text'],
     },
     {
@@ -144,7 +146,7 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Support',
       description: 'Help requests and support tickets',
       icon: HelpCircle,
-      action: () => router.push('/dashboard/support'),
+      action: () => router.push(buildDashboardHref('/dashboard/support', slug)),
       keywords: ['support', 'help', 'tickets', 'assistance'],
     },
     {
@@ -152,7 +154,7 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Integrations',
       description: 'CRM webhooks and delivery logs',
       icon: Plug,
-      action: () => router.push('/dashboard/integrations'),
+      action: () => router.push(buildDashboardHref('/dashboard/integrations', slug)),
       keywords: ['crm', 'webhook', 'integration', 'hubspot', 'ghl'],
     },
     {
@@ -160,7 +162,7 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Reports',
       description: 'Analytics, ROI, and performance reports',
       icon: BarChart3,
-      action: () => router.push('/dashboard/reports'),
+      action: () => router.push(buildDashboardHref('/dashboard/reports', slug)),
       keywords: ['reports', 'analytics', 'roi', 'performance', 'metrics'],
     },
     {
@@ -168,7 +170,7 @@ export function CommandPalette({ tenant }: CommandPaletteProps) {
       label: 'Settings',
       description: 'Billing, branding, AI system, and workspace configuration',
       icon: Settings,
-      action: () => router.push('/dashboard/settings'),
+      action: () => router.push(buildDashboardHref('/dashboard/settings', slug)),
       keywords: ['settings', 'config', 'tenant', 'billing', 'branding', slug],
     },
   ], [router, slug])

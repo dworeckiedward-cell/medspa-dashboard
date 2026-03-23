@@ -7,10 +7,15 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
 // ── Auth callback ──────────────────────────────────────────────────────────
 // Handles OAuth redirect (code exchange) and magic link (hash tokens).
-// After session is established, resolves tenant count to decide redirect target:
-//   0 tenants   → /dashboard (will show "no workspace" screen)
-//   1 tenant    → /dashboard (auto-resolved by resolveTenantAccess)
-//   2+ tenants  → /dashboard/select-tenant
+// After session is established, enforces the allowlist then decides redirect:
+//   no user     → /login?error=auth_failed
+//   0 tenants   → sign out + /login?error=not_allowed  (not in allowlist)
+//   1+ tenants  → /dashboard/select-tenant
+//
+// PLATFORM REQUIREMENT: Supabase Dashboard → Authentication → Providers →
+//   enable "Disable signups" for every sign-in method so OAuth cannot
+//   auto-create users we haven't pre-provisioned. This code is a
+//   defense-in-depth check; the platform setting is the primary gate.
 
 function parseHash(hash: string) {
   const h = hash.startsWith('#') ? hash.slice(1) : hash
@@ -24,9 +29,9 @@ function parseHash(hash: string) {
 async function resolvePostLoginRedirect(supabase: ReturnType<typeof getSupabaseBrowserClient>): Promise<string> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return '/dashboard'
+    if (!user) return '/login?error=auth_failed'
 
-    // Check how many tenants this user has access to
+    // Allowlist check: user must be a member of at least one tenant
     const { data: memberships } = await supabase
       .from('user_tenants')
       .select('tenant_id')
@@ -34,12 +39,17 @@ async function resolvePostLoginRedirect(supabase: ReturnType<typeof getSupabaseB
 
     const count = memberships?.length ?? 0
 
-    if (count === 0) return '/dashboard'
-    if (count === 1) return '/dashboard'
+    if (count === 0) {
+      // Not in the allowlist — revoke session immediately and block
+      try { await supabase.auth.signOut() } catch { /* best-effort */ }
+      return '/login?error=not_allowed'
+    }
+
+    // Always show workspace picker — even single-tenant users must confirm
     return '/dashboard/select-tenant'
   } catch {
-    // If user_tenants doesn't exist or query fails, fall back to dashboard
-    return '/dashboard'
+    // Fail closed: any unexpected error blocks access
+    return '/login?error=auth_failed'
   }
 }
 

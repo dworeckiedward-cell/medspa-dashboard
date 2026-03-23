@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Search, Terminal } from 'lucide-react'
@@ -31,27 +31,8 @@ const LAST_WORKSPACE_KEY = 'servify:last-workspace'
 export function WorkspaceSelector({ tenants, hasOpsAccess }: WorkspaceSelectorProps) {
   const router = useRouter()
   const [query, setQuery] = useState('')
-  const autoRedirected = useRef(false)
 
-  // Auto-redirect to last selected workspace if it's still in the user's list
-  useEffect(() => {
-    if (autoRedirected.current) return
-    autoRedirected.current = true
-
-    try {
-      const lastSlug = localStorage.getItem(LAST_WORKSPACE_KEY)
-      if (!lastSlug) return
-
-      const match = tenants.find(
-        (t) => t.slug.toLowerCase() === lastSlug.toLowerCase() && t.isActive,
-      )
-      if (match) {
-        router.replace(`/dashboard?tenant=${encodeURIComponent(match.slug)}`)
-      }
-    } catch {
-      // localStorage unavailable — show picker
-    }
-  }, [tenants, router])
+  // No auto-redirect — user must always explicitly choose a workspace.
 
   const filtered = useMemo(() => {
     if (!query) return tenants
@@ -66,9 +47,10 @@ export function WorkspaceSelector({ tenants, hasOpsAccess }: WorkspaceSelectorPr
   const showSearch = tenants.length >= 5
 
   function handleSelect(tenant: WorkspaceTenant) {
-    // Persist selection for next visit
-    localStorage.setItem(LAST_WORKSPACE_KEY, tenant.slug)
-    router.push(`/dashboard?tenant=${encodeURIComponent(tenant.slug)}`)
+    // Persist selection for UX hint (not for auto-redirect)
+    try { localStorage.setItem(LAST_WORKSPACE_KEY, tenant.slug) } catch { /* ignore */ }
+    // Navigate to prepare page for premium loading transition
+    router.push(`/dashboard/prepare?tenant=${encodeURIComponent(tenant.slug)}`)
   }
 
   return (
@@ -103,8 +85,11 @@ export function WorkspaceSelector({ tenants, hasOpsAccess }: WorkspaceSelectorPr
               >
                 {/* Monogram / logo */}
                 <div
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white text-sm font-bold overflow-hidden"
-                  style={{ background: tenant.brandColor ?? 'var(--brand-primary)' }}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold overflow-hidden"
+                  style={{
+                    background: tenant.logoUrl ? '#ffffff' : (tenant.brandColor ?? 'var(--brand-primary)'),
+                    color: tenant.logoUrl ? undefined : '#ffffff',
+                  }}
                 >
                   {tenant.logoUrl ? (
                     <Image

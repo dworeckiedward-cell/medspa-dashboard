@@ -8,6 +8,7 @@
 const DEFAULT_BASE_URL = 'https://api.retellai.com'
 const MAX_RETRIES = 2
 const RETRY_DELAY_MS = 1000
+const DEBUG = process.env.DEBUG_RETELL === 'true'
 
 export class RetellApiError extends Error {
   constructor(
@@ -48,7 +49,16 @@ export function getRetellClient(): RetellClient {
       }
 
       try {
+        const method = init?.method ?? 'GET'
+        if (DEBUG) {
+          console.log(`[retell] ${method} ${path} (attempt ${attempt + 1})`)
+        }
+
         const res = await fetch(url, { ...init, headers })
+
+        if (DEBUG) {
+          console.log(`[retell] ${method} ${path} → ${res.status}`)
+        }
 
         if (res.ok) {
           // Some endpoints return 204 No Content
@@ -65,10 +75,12 @@ export function getRetellClient(): RetellClient {
           continue
         }
 
-        // Non-retriable error
-        const body = await res.json().catch(() => ({}))
+        // Non-retriable error — read raw text so we never lose the message
+        const text = await res.text().catch(() => '')
+        let body: unknown
+        try { body = JSON.parse(text) } catch { body = text || {} }
         throw new RetellApiError(
-          `Retell API ${res.status}: ${JSON.stringify(body)}`,
+          `Retell API ${res.status}: ${typeof body === 'string' ? body : JSON.stringify(body)}`,
           res.status,
           body,
         )

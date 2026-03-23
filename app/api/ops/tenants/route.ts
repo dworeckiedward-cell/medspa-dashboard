@@ -63,6 +63,7 @@ const CreateClinicSchema = z
       .optional()
       .transform((v) => (v !== null && v !== undefined && isNaN(v) ? null : v)),
     currency: z.string().length(3).optional(),
+    clientType: z.enum(['clinic', 'outbound', 'fb_leads']).optional(),
   })
   .passthrough()
 
@@ -105,6 +106,7 @@ export async function POST(request: Request) {
     setupFeeAmount: parsed.data.setupFeeAmount ?? null,
     retainerAmount: parsed.data.retainerAmount ?? null,
     currency: parsed.data.currency,
+    clientType: parsed.data.clientType,
   }
 
   const operatorEmail = access.email ?? 'unknown'
@@ -131,5 +133,6 @@ export async function POST(request: Request) {
     ok: true,
     tenantId: result.tenantId,
     inviteToken: result.inviteToken,
+    ...(result.warning ? { warning: result.warning } : {}),
   })
 }

@@ -67,29 +67,41 @@ export function OpsSidebarNav({ email }: OpsSidebarNavProps) {
   }
 
   return (
-    <nav className="hidden lg:flex lg:flex-col w-48 shrink-0">
+    <nav className="hidden lg:flex lg:flex-col w-52 shrink-0">
       <div className="sticky top-20 flex flex-col" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
+        {/* Servify OS label */}
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#71717a] px-3 mb-3">
+          Navigation
+        </p>
+
         {/* Navigation items */}
         <div className="space-y-0.5 flex-1">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => scrollTo(id)}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors text-left',
-                activeId === id
-                  ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                  : 'text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:bg-[var(--brand-surface)]',
-              )}
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              {label}
-            </button>
-          ))}
+          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+            const isActive = activeId === id
+            return (
+              <button
+                key={id}
+                onClick={() => scrollTo(id)}
+                className={cn(
+                  'group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[12px] font-medium transition-all duration-150 text-left',
+                  isActive
+                    ? 'bg-[#6366f1]/10 text-[#818cf8]'
+                    : 'text-[#71717a] hover:text-[#f0f0f5] hover:bg-white/[0.04]',
+                )}
+              >
+                {/* Active left bar */}
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-r-full bg-[#6366f1]" />
+                )}
+                <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-[#6366f1]' : 'text-[#71717a] group-hover:text-[#f0f0f5]')} />
+                {label}
+              </button>
+            )
+          })}
         </div>
 
         {/* Account menu at bottom */}
-        <div className="mt-4 pt-3 border-t border-[var(--brand-border)]/50">
+        <div className="mt-4 pt-3 border-t border-[#1e1e2e]">
           <OpsAccountMenu email={email ?? null} />
         </div>
       </div>

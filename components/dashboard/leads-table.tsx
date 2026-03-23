@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { formatDistanceToNowStrict, parseISO, isAfter, isBefore, subDays } from 'date-fns'
 import {
   Search,
@@ -11,6 +11,11 @@ import {
   AlertTriangle,
   Clock,
   Bell,
+  Download,
+  Link2,
+  FileText,
+  Phone,
+  X,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -39,6 +44,8 @@ import { CONTACT_STATUS_LABELS } from '@/lib/types/domain'
 
 interface LeadsTableProps {
   contacts: Contact[]
+  tenantSlug?: string | null
+  remainingCallsToday?: number
 }
 
 type SortKey = 'lastCallAt' | 'nextActionAt' | 'priorityScore'
@@ -48,10 +55,17 @@ type DatePreset = 'today' | '7d' | '30d' | 'all'
 const statusVariant: Record<ContactStatus, 'success' | 'warning' | 'muted' | 'destructive' | 'brand' | 'accent'> = {
   new: 'brand',
   contacted: 'accent',
-  interested: 'warning',
+  booking_link_sent: 'warning',
+  clicked_link: 'accent',
   booked: 'success',
-  lost: 'destructive',
+  lost: 'muted',
+  interested: 'warning',
   reactivation: 'muted',
+  queued: 'muted',
+  not_interested: 'destructive',
+  followup_needed: 'warning',
+  callback: 'warning',
+  follow_up_exhausted: 'muted',
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -89,7 +103,7 @@ function priorityLabel(score: number): { label: string; className: string } {
   return { label: 'Low', className: 'text-[var(--brand-muted)]' }
 }
 
-export function LeadsTable({ contacts }: LeadsTableProps) {
+export function LeadsTable({ contacts, tenantSlug, remainingCallsToday = 20 }: LeadsTableProps) {
   const { t } = useLanguage()
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -99,6 +113,69 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('lastCallAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
+
+  // Batch call selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [callsRemaining, setCallsRemaining] = useState(remainingCallsToday)
+  const [batchStatus, setBatchStatus] = useState<'idle' | 'calling' | 'done' | 'error'>('idle')
+  const [batchMessage, setBatchMessage] = useState<string | null>(null)
+
+  // Fetch remaining calls on mount
+  useEffect(() => {
+    fetch('/api/leads/call-batch')
+      .then((r) => r.json())
+      .then((d: { remaining_today?: number }) => {
+        if (typeof d.remaining_today === 'number') setCallsRemaining(d.remaining_today)
+      })
+      .catch(() => {})
+  }, [])
+
+  function toggleSelectId(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function selectAllUncontacted() {
+    const uncontacted = sorted.filter((c) => c.status === 'new').map((c) => c.id)
+    setSelectedIds(new Set(uncontacted))
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set())
+    setBatchStatus('idle')
+    setBatchMessage(null)
+  }
+
+  const handleCallBatch = useCallback(async () => {
+    if (selectedIds.size === 0 || batchStatus === 'calling') return
+    setBatchStatus('calling')
+    setBatchMessage(null)
+    try {
+      const res = await fetch('/api/leads/call-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_ids: Array.from(selectedIds) }),
+      })
+      const data = (await res.json()) as { count?: number; remaining_today?: number; error?: string }
+      if (!res.ok) {
+        setBatchStatus('error')
+        setBatchMessage(data.error ?? 'Failed to queue calls')
+      } else {
+        setBatchStatus('done')
+        setBatchMessage(`Queued ${data.count} call${data.count === 1 ? '' : 's'}. Emma will call them during business hours.`)
+        if (typeof data.remaining_today === 'number') setCallsRemaining(data.remaining_today)
+        setTimeout(clearSelection, 4000)
+      }
+    } catch {
+      setBatchStatus('error')
+      setBatchMessage('Network error. Please try again.')
+    }
+  }, [selectedIds, batchStatus])
 
   const filtered = useMemo(() => {
     const now = new Date()
@@ -171,6 +248,35 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
     setDatePreset('all')
   }
 
+  function exportCsv() {
+    const rows = sorted
+    const header = ['Name', 'Phone', 'Email', 'Status', 'Source', 'Priority', 'Last Call', 'Created']
+    const escape = (v: string | null | undefined) => {
+      const s = v ?? ''
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const lines = [
+      header.join(','),
+      ...rows.map((c) => [
+        escape(c.fullName),
+        escape(c.phone),
+        escape(c.email),
+        escape(CONTACT_STATUS_LABELS[c.status] ?? c.status),
+        escape(c.source),
+        String(c.priorityScore),
+        escape(c.lastCallAt ? new Date(c.lastCallAt).toLocaleString() : ''),
+        escape(c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''),
+      ].join(',')),
+    ]
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   function SortIcon({ col }: { col: SortKey }) {
     if (sortKey !== col) return <ArrowUpDown className="h-3 w-3 opacity-30 shrink-0" />
     return sortDir === 'asc'
@@ -194,6 +300,22 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
 
             {/* Filter controls */}
             <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={exportCsv}
+                title="Export CSV"
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-2 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:border-[var(--brand-primary)]/40 transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export
+              </button>
+              <button
+                onClick={selectAllUncontacted}
+                title="Select all new / uncontacted leads"
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-2 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:border-[var(--brand-primary)]/40 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                Select Uncontacted
+              </button>
               {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--brand-muted)]" />
@@ -212,9 +334,11 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{t.leads.allStatuses}</SelectItem>
-                  {(Object.keys(CONTACT_STATUS_LABELS) as ContactStatus[]).map((s) => (
-                    <SelectItem key={s} value={s}>{CONTACT_STATUS_LABELS[s]}</SelectItem>
-                  ))}
+                  {(Object.keys(CONTACT_STATUS_LABELS) as ContactStatus[])
+                    .filter((s) => s !== 'reactivation' && s !== 'queued')
+                    .map((s) => (
+                      <SelectItem key={s} value={s}>{CONTACT_STATUS_LABELS[s]}</SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
 
@@ -282,11 +406,23 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-8 pr-0">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all visible"
+                        checked={sorted.length > 0 && sorted.every((c) => selectedIds.has(c.id))}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedIds(new Set(sorted.map((c) => c.id)))
+                          else setSelectedIds(new Set())
+                        }}
+                        className="h-3.5 w-3.5 cursor-pointer accent-[var(--brand-primary)]"
+                      />
+                    </TableHead>
                     <TableHead className="w-48">{t.leads.colName}</TableHead>
                     <TableHead className="w-24">{t.leads.colStatus}</TableHead>
-                    <TableHead className="w-24">{t.leads.colSource}</TableHead>
+                    <TableHead className="w-24 hidden sm:table-cell">{t.leads.colSource}</TableHead>
                     <TableHead
-                      className="w-36 cursor-pointer select-none"
+                      className="w-36 cursor-pointer select-none hidden sm:table-cell"
                       onClick={() => handleSort('lastCallAt')}
                     >
                       <span className="flex items-center gap-1">
@@ -295,7 +431,7 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
                       </span>
                     </TableHead>
                     <TableHead
-                      className="w-36 cursor-pointer select-none"
+                      className="w-36 cursor-pointer select-none hidden md:table-cell"
                       onClick={() => handleSort('nextActionAt')}
                     >
                       <span className="flex items-center gap-1">
@@ -303,32 +439,31 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
                         <SortIcon col="nextActionAt" />
                       </span>
                     </TableHead>
-                    <TableHead className="w-20">{t.leads.colOwner}</TableHead>
-                    <TableHead
-                      className="w-20 text-right cursor-pointer select-none"
-                      onClick={() => handleSort('priorityScore')}
-                    >
-                      <span className="flex items-center justify-end gap-1">
-                        <SortIcon col="priorityScore" />
-                        {t.leads.colPriority}
-                      </span>
-                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sorted.map((contact) => {
                     const nextOverdue = isOverdue(contact.nextActionAt)
-                    const pri = priorityLabel(contact.priorityScore)
                     const openTaskCount = contact.openFollowUpTasks?.length ?? 0
                     const intent = contact.latestCallSummary?.structuredSummary?.intent
 
                     return (
                       <TableRow
                         key={contact.id}
-                        className="cursor-pointer"
+                        className={cn('cursor-pointer', selectedIds.has(contact.id) && 'bg-[var(--brand-primary)]/5')}
                         onClick={() => setSelectedContact(contact)}
                       >
-                        {/* Name + intent */}
+                        {/* Checkbox */}
+                        <TableCell className="pr-0" onClick={(e) => toggleSelectId(contact.id, e)}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(contact.id)}
+                            onChange={() => {}}
+                            className="h-3.5 w-3.5 cursor-pointer accent-[var(--brand-primary)]"
+                          />
+                        </TableCell>
+
+                        {/* Name + intent + notes snippet */}
                         <TableCell>
                           <div className="font-medium text-sm text-[var(--brand-text)] leading-tight">
                             {contact.fullName}
@@ -341,31 +476,53 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
                               {intent.replace(/_/g, ' ')}
                             </div>
                           )}
+                          {contact.notes && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <FileText className="h-2.5 w-2.5 text-[var(--brand-muted)] opacity-50 shrink-0" />
+                              <span className="text-[10px] text-[var(--brand-muted)] opacity-60 truncate max-w-[140px]">
+                                {contact.notes}
+                              </span>
+                            </div>
+                          )}
+                          {/* Mobile-only: last call time */}
+                          {contact.lastCallAt && (
+                            <div className="text-[10px] text-[var(--brand-muted)] mt-0.5 sm:hidden">
+                              {relativeTime(contact.lastCallAt)}
+                            </div>
+                          )}
                         </TableCell>
 
-                        {/* Status */}
+                        {/* Status + clicked badge */}
                         <TableCell>
-                          <Badge variant={statusVariant[contact.status]} className="text-xs">
-                            {CONTACT_STATUS_LABELS[contact.status]}
-                          </Badge>
+                          <div className="flex flex-col gap-1 items-start">
+                            <Badge variant={statusVariant[contact.status]} className="text-xs">
+                              {CONTACT_STATUS_LABELS[contact.status]}
+                            </Badge>
+                            {contact.bookingLinkClickedAt && contact.status !== 'clicked_link' && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-[var(--brand-primary)] font-medium">
+                                <Link2 className="h-2.5 w-2.5" />
+                                Clicked
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
 
                         {/* Source */}
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <span className="text-xs text-[var(--brand-muted)]">
                             {SOURCE_LABELS[contact.source] ?? contact.source}
                           </span>
                         </TableCell>
 
                         {/* Last contact */}
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <span className="text-xs text-[var(--brand-muted)]">
                             {relativeTime(contact.lastCallAt) ?? '—'}
                           </span>
                         </TableCell>
 
                         {/* Next action */}
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {contact.nextActionAt ? (
                             <div className="flex items-center gap-1.5">
                               {nextOverdue ? (
@@ -392,22 +549,6 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
                           )}
                         </TableCell>
 
-                        {/* Owner */}
-                        <TableCell>
-                          <Badge
-                            variant={contact.ownerType === 'ai' ? 'brand' : 'accent'}
-                            className="text-[10px]"
-                          >
-                            {contact.ownerType === 'ai' ? t.leads.ownerAi : t.leads.ownerHuman}
-                          </Badge>
-                        </TableCell>
-
-                        {/* Priority */}
-                        <TableCell className="text-right">
-                          <span className={cn('text-xs font-semibold tabular-nums', pri.className)}>
-                            {pri.label}
-                          </span>
-                        </TableCell>
                       </TableRow>
                     )
                   })}
@@ -422,7 +563,49 @@ export function LeadsTable({ contacts }: LeadsTableProps) {
       <LeadDetailDrawer
         contact={selectedContact}
         onClose={() => setSelectedContact(null)}
+        tenantSlug={tenantSlug}
       />
+
+      {/* Batch action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 shadow-xl shadow-black/10 backdrop-blur-xl">
+          <span className="text-sm font-medium text-[var(--brand-text)] whitespace-nowrap">
+            {selectedIds.size} selected
+          </span>
+
+          <div className="h-4 w-px bg-[var(--brand-border)]" />
+
+          {batchStatus === 'done' || batchStatus === 'error' ? (
+            <p className={cn('text-xs', batchStatus === 'done' ? 'text-emerald-600' : 'text-red-500')}>
+              {batchMessage}
+            </p>
+          ) : (
+            <>
+              <button
+                onClick={handleCallBatch}
+                disabled={batchStatus === 'calling' || callsRemaining <= 0}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {batchStatus === 'calling' ? 'Queuing…' : `Call All Now`}
+              </button>
+              {callsRemaining < 20 && (
+                <span className="text-[11px] text-[var(--brand-muted)] whitespace-nowrap">
+                  {callsRemaining}/20 calls left today
+                </span>
+              )}
+            </>
+          )}
+
+          <button
+            onClick={clearSelection}
+            className="ml-1 rounded-full p-1 text-[var(--brand-muted)] hover:text-[var(--brand-text)] hover:bg-[var(--brand-border)]/30 transition-colors"
+            aria-label="Clear selection"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </>
   )
 }

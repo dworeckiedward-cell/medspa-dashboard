@@ -74,6 +74,7 @@ import type { IntegrationProvider } from '@/lib/types/domain'
 import { CustomWebhookAdapter } from './providers/custom-webhook'
 import { HubSpotAdapter } from './providers/hubspot'
 import { GhlAdapter } from './providers/ghl'
+import { JaneAppAdapter } from './providers/jane-app'
 
 type AdapterFactory = (config: Record<string, unknown>) => CrmAdapter
 
@@ -81,6 +82,7 @@ const ADAPTER_REGISTRY: Partial<Record<IntegrationProvider, AdapterFactory>> = {
   custom_webhook: (config) => new CustomWebhookAdapter(config),
   hubspot:        (config) => new HubSpotAdapter(config),
   ghl:            (config) => new GhlAdapter(config),
+  jane_app:       (config) => new JaneAppAdapter(config),
 }
 
 export function resolveAdapter(

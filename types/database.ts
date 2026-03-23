@@ -5,7 +5,7 @@
 
 export type CallDirection = 'inbound' | 'outbound'
 
-export type OutboundType = 'speed_to_lead' | 'reminder' | 'reactivation' | 'campaign'
+export type OutboundType = 'speed_to_lead' | 'reminder' | 'reactivation' | 'campaign' | 'follow_up'
 
 export type CallDisposition =
   | 'booked'
@@ -16,7 +16,7 @@ export type CallDisposition =
   | 'spam'
   | 'other'
 
-export type CallSentiment = 'positive' | 'neutral' | 'negative'
+export type CallSentiment = 'positive' | 'neutral' | 'negative' | 'follow_up'
 
 export type CallIntent =
   | 'book_appointment'
@@ -56,6 +56,7 @@ export interface Client {
   accent_color: string | null
   theme_mode: string              // 'dark' | 'light'
   retell_agent_id: string | null
+  outbound_agent_id: string | null
   retell_phone_number: string | null
   n8n_webhook_url: string | null
   n8n_api_key_ref: string | null  // references secret manager key, NOT the secret itself
@@ -77,6 +78,45 @@ export interface Client {
   ai_auto_resume_at: string | null
   ai_control_updated_at: string | null
   ai_control_updated_by: string | null
+
+  // ── Dashboard variant (stored in clients table, extension point) ───────────
+  /** @deprecated Use dashboard_mode instead. Kept for backward compatibility. */
+  client_type?: 'clinic' | 'outbound' | null
+
+  // ── Multi-vertical mode (migration 026) ──────────────────────────────────
+  /** Controls which KPIs, lead pipeline, and UI sections the dashboard shows.
+   *  'inbound_clinic' (default) | 'outbound_db' | 'fb_leads'
+   *  Falls back to client_type mapping when null/undefined. */
+  dashboard_mode?: 'inbound_clinic' | 'outbound_db' | 'fb_leads' | null
+  /** Industry vertical for terminology and provider suggestions.
+   *  Extensible string — e.g. 'medspa', 'dental', 'real_estate', 'general'. */
+  business_vertical?: string | null
+
+  // ── OPS-managed fields ──────────────────────────────────────────────────
+  /** Clinic lifecycle status: onboarding → live → watch → canceled */
+  client_status?: 'onboarding' | 'live' | 'watch' | 'canceled' | null
+  /** Clinic website URL */
+  website_url?: string | null
+
+  // ── Wallet / usage-based billing (migration 028) ────────────────────────
+  /** Pre-paid seconds remaining. Decremented after each call. */
+  available_seconds: number
+
+  // ── Stripe Connect (migration 036) ──────────────────────────────────────
+  stripe_connect_account_id?: string | null
+  stripe_connect_onboarded?: boolean
+  platform_fee_percent?: number
+
+  // ── AI Budget (migration 040) ────────────────────────────────────────────
+  /** Monthly AI spend budget in cents. Default $100 = 10000. */
+  monthly_ai_budget_cents?: number
+  /** Day of month the budget resets (1 = 1st). */
+  ai_budget_reset_day?: number
+
+  // ── Tenant feature flags (migration 050) ─────────────────────────────────
+  /** JSONB feature flags. Keys: appointments_visible, booked_revenue_visible, jane_api.
+   *  Missing key or true → feature enabled. Explicit false → feature disabled. */
+  features?: Record<string, unknown> | null
 }
 
 export type CallType =
@@ -118,6 +158,8 @@ export interface CallLog {
   is_lead: boolean
   human_followup_needed: boolean
   human_followup_reason: string | null
+  follow_up_count: number
+  last_follow_up_at: string | null
   tags: string[]
   raw_payload: Record<string, unknown> | null
   created_at: string
@@ -153,7 +195,29 @@ export interface CallLog {
   retell_agent_id: string | null              // Retell agent that handled the call
   call_status: string | null                  // 'ended' | 'ongoing' | 'error' | 'registered'
   call_summary_json: Record<string, unknown> | null  // Retell custom_analysis_data
+  call_summary: string | null                 // Plain text from call_analysis.call_summary (migration 038)
   disconnect_reason: string | null            // Retell disconnect reason
+
+  // ── Fields added in migration 027 (FB Leads enrichment) ─────────────────
+  fb_ad_id: string | null                     // Facebook Ad ID for cost attribution
+  fb_campaign_id: string | null               // Facebook Campaign ID
+  fb_lead_id: string | null                   // Facebook Lead ID
+  lead_cost_cents: number | null              // Cost per lead in cents (from FB Ads or manual)
+  ad_set_name: string | null                  // Facebook Ad Set name
+
+  // ── AI cost tracking (migration 040) ─────────────────────────────────────
+  /** Retell call cost in integer cents (e.g. 23 = $0.23). */
+  cost_cents: number | null
+
+  // ── Lead management fields ────────────────────────────────────────────────
+  /** Lead funnel stage (migration 037): new | contacted | booking_link_sent | clicked_link | booked | lost */
+  lead_status: string | null
+  /** Free-text notes added by clinic staff via the dashboard. */
+  notes: string | null
+  /** ISO 8601 timestamp — set when patient clicks the booking link SMS. */
+  booking_link_clicked_at: string | null
+  /** Campaign type for grouping (e.g. 'acupuncture', 'skin', 'botox'). */
+  campaign_type: string | null
 }
 
 export interface ServicesCatalog {
@@ -195,10 +259,31 @@ export interface KbVersion {
 
 export interface DashboardMetrics {
   appointmentsBooked: number
-  potentialRevenue: number       // sum of potential_revenue (last 30d)
+  potentialRevenue: number       // sum of paid bookings (real money collected)
+  pipelineRevenue: number        // sum of call_logs.potential_revenue from is_lead=true calls
   hoursSaved: number             // sum(duration_seconds) / 3600
   leadConversionRate: number     // (booked / total leads) * 100
+  /** Average response_time_seconds across leads in range; null if no data yet */
+  avgSpeedSec: number | null
   chartSeries: ChartDataPoint[]
+
+  /** Total call_logs rows in the period (including junk) */
+  totalCalls: number
+  /** Calls passing the meaningful-call filter */
+  meaningfulCalls: number
+  /** Lead rows (is_lead=true) among meaningful calls */
+  totalLeads: number
+  /** Meaningful inbound calls (direction='inbound') */
+  inboundCalls: number
+  /** Meaningful outbound calls (direction='outbound') */
+  outboundSetterCalls: number
+  /** Breakdown of non-meaningful calls */
+  callBreakdown: {
+    answered: number
+    voicemail: number
+    noAnswer: number
+    junk: number        // spam, test, machine_detected, etc.
+  }
 }
 
 export interface ChartDataPoint {
@@ -254,5 +339,5 @@ export interface ClientIntegrationDb {
 
 export interface ResolvedTenant {
   slug: string
-  source: 'subdomain' | 'custom_domain' | 'query_param' | 'header'
+  source: 'subdomain' | 'custom_domain' | 'query_param' | 'header' | 'cookie'
 }

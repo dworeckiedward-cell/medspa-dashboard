@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useTransition } from 'react'
+import Link from 'next/link'
 import {
   CalendarCheck,
   DollarSign,
@@ -11,20 +12,17 @@ import {
   Zap,
   Bell,
   Construction,
+  ArrowRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/utils'
+import { cn, polish, formatCurrency } from '@/lib/utils'
 import { KpiCards } from './kpi-cards'
 import { RoiChart } from './roi-chart'
 import { CallLogsTable } from './call-logs-table'
-import { TenantInfoCard } from './tenant-info-card'
 import { CallDetailPanel } from './call-detail-panel'
 import { ConversionTimeline } from './conversion-timeline'
-import { WeeklyReportCard } from './weekly-report-card'
 import { TopServicesCard } from './top-services-card'
-import { QuickActionsStrip } from './quick-actions-strip'
-import { SystemStatusCard } from './system-status-card'
+import { OperationsPanel } from './operations-panel'
 import { OnboardingWizard } from './onboarding-wizard'
 import { NextActionCard } from './next-action-card'
 import { NeedsAttentionCard } from './needs-attention-card'
@@ -32,14 +30,20 @@ import { RecommendedActionsCard } from './recommended-actions-card'
 import { ServicePerformanceCard } from './service-performance-card'
 import { DataQualityCard } from './data-quality-card'
 import { SystemAlertsCard } from './system-alerts-card'
-import { WeeklyAiSummaryCard } from './weekly-ai-summary-card'
+import { RecentCallsPreview } from './recent-calls-preview'
+import { RecentPositiveCalls } from './recent-positive-calls'
+import { buildDashboardHref } from '@/lib/dashboard/link'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { useFrontDeskMode } from '@/lib/dashboard/front-desk-mode'
 import { useLanguage } from '@/lib/dashboard/use-language'
 import type { DashboardMetrics, CallLog, Client } from '@/types/database'
 import type { ClientService } from '@/lib/types/domain'
 import type { DashboardException } from '@/lib/dashboard/exceptions'
 import type { RecommendedAction } from '@/lib/dashboard/recommended-actions'
+import type { RecentBooking } from './recent-appointments-preview'
+import { RecentAppointmentsPreview } from './recent-appointments-preview'
 import { AiSystemStatusBanner } from './ai-system-status-banner'
+import { getTenantFeatures } from '@/lib/dashboard/tenant-features'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -62,10 +66,74 @@ interface DashboardTabsProps {
   exceptions?: DashboardException[]
   /** Recommended actions for operator guidance */
   recommendedActions?: RecommendedAction[]
+  /** Active date range in days (7 or 30) — wired to getDashboardMetrics on the server */
+  rangeDays?: number
+  /** Recent bookings from bookings table for the appointments preview card */
+  recentBookings?: RecentBooking[]
 }
 
-type MainTab = 'overview' | 'inbound' | 'outbound'
+type MainTab = 'overview'
 type OutboundSubTab = 'speed-to-lead' | 'reminders'
+
+const RANGE_OPTIONS = [
+  { value: 1, label: '24h' },
+  { value: 3, label: '72h' },
+  { value: 7, label: '7d' },
+  { value: 30, label: '30d' },
+  { value: 0, label: 'All' },
+] as const
+
+// ── Range switch ────────────────────────────────────────────────────────────
+
+function RangeSwitch({ active }: { active: number }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [isPending, startTransition] = useTransition()
+  const [optimistic, setOptimistic] = useState(active)
+
+  const handleChange = useCallback(
+    (days: number) => {
+      setOptimistic(days)
+      const params = new URLSearchParams(searchParams.toString())
+      if (days === 7) {
+        params.delete('range')
+      } else {
+        params.set('range', String(days))
+      }
+      const qs = params.toString()
+      startTransition(() => {
+        router.replace(qs ? `${pathname}?${qs}` : pathname)
+      })
+    },
+    [router, pathname, searchParams, startTransition],
+  )
+
+  const displayed = isPending ? optimistic : active
+
+  return (
+    <div className={cn(
+      'inline-flex items-center gap-px rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-0.5',
+      isPending && 'opacity-70',
+    )}>
+      {RANGE_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => handleChange(opt.value)}
+          className={cn(
+            'rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors duration-150',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/30',
+            displayed === opt.value
+              ? 'bg-[var(--brand-surface)] text-[var(--brand-text)] shadow-sm'
+              : 'text-[var(--brand-muted)] hover:text-[var(--brand-text)]',
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 // ── Tab bar ─────────────────────────────────────────────────────────────────
 
@@ -167,8 +235,8 @@ function MiniKpiCard({ label, value, sub, icon: Icon, color }: MiniKpiCardProps)
 function ComingSoonSection({ title, description }: { title: string; description: string }) {
   return (
     <Card>
-      <CardContent className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand-border)]/50">
+      <CardContent className={polish.emptyState}>
+        <div className={polish.emptyIcon}>
           <Construction className="h-6 w-6 text-[var(--brand-muted)] opacity-50" />
         </div>
         <div>
@@ -192,16 +260,87 @@ function OverviewTab({
   clientId,
   tenant,
   services,
+  rangeDays = 7,
+  recentBookings,
   onSelectCall,
-  failedDeliveries,
+}: DashboardTabsProps & { onSelectCall: (log: CallLog) => void }) {
+  const { mode } = useFrontDeskMode()
+  const isSimple = mode === 'simple'
+  const features = getTenantFeatures(tenant)
+
+  return (
+    <div className="space-y-4 p-4 md:space-y-6 md:p-6 animate-fade-in">
+      {/* ── Above the fold: ROI-first ───────────────────────────────── */}
+
+      {/* 1. KPI cards */}
+      <KpiCards metrics={metrics} currency={currency} features={features} rangeDays={rangeDays} />
+
+      {/* 2. Revenue Pipeline (2/3) + Recent Positive Calls (1/3) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+        <div className="lg:col-span-2">
+          <RoiChart
+            data={metrics.chartSeries}
+            currency={currency}
+            rangeDays={rangeDays}
+            rangeSwitch={<RangeSwitch active={rangeDays} />}
+            showBookedValue={features.showBookedRevenue}
+          />
+        </div>
+        <div className="lg:col-span-1 flex flex-col">
+          <RecentPositiveCalls callLogs={callLogs} onSelectCall={onSelectCall} className="flex-1" />
+        </div>
+      </div>
+
+      {/* 3. Recent Calls — full width */}
+      <RecentCallsPreview callLogs={callLogs} onSelectCall={onSelectCall} tenantSlug={tenant.slug} className="min-h-[320px]" />
+
+      {/* 5. Conversion Funnel — hidden for tenants without Jane API */}
+      {features.janeApi && (
+        <ConversionTimeline callLogs={callLogs} tenantSlug={tenant.slug} showBookedSteps={features.showAppointments} />
+      )}
+
+      {/* CTA — visible in all modes including simple */}
+      <div className="flex justify-end -mt-2">
+        <Link
+          href={buildDashboardHref('/dashboard/call-logs', tenant.slug)}
+          className="inline-flex items-center gap-1 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors duration-150"
+        >
+          View all calls
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+
+      {/* ── Below the fold (hidden in simple mode) ────────────────── */}
+
+      {!isSimple && (
+        <>
+          {/* Service performance insights — hidden for tenants using Stripe bookings */}
+          {services.length > 0 && tenant.slug !== 'live-younger' && (
+            <ServicePerformanceCard callLogs={callLogs} services={services} currency={currency} />
+          )}
+
+          {/* Top services — hidden for tenants using Stripe bookings */}
+          {services.length > 0 && tenant.slug !== 'live-younger' && (
+            <TopServicesCard callLogs={callLogs} services={services} currency={currency} />
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Tab content: Setup & Tips ──────────────────────────────────────────────
+
+function SetupTipsTab({
+  callLogs,
+  tenant,
+  services,
   integrationsCount,
   integrationsHealthy,
   billing,
   exceptions,
   recommendedActions,
-}: DashboardTabsProps & { onSelectCall: (log: CallLog) => void }) {
-  const { isFrontDesk } = useFrontDeskMode()
-
+}: DashboardTabsProps) {
   return (
     <div className="space-y-6 p-6 animate-fade-in">
       {/* AI system status banner — shown when AI is not fully active */}
@@ -212,90 +351,40 @@ function OverviewTab({
         <NeedsAttentionCard exceptions={exceptions} />
       )}
 
-      {/* ── Simple-view items (always shown) ─────────────────────────── */}
+      {/* Onboarding wizard (dismissible, DB-backed with localStorage fallback) */}
+      <OnboardingWizard
+        tenantId={tenant.id}
+        tenantSlug={tenant.slug}
+        tenantName={tenant.name}
+        tenantLogoUrl={tenant.logo_url}
+        tenantBrandColor={tenant.brand_color}
+      />
 
-      <KpiCards metrics={metrics} currency={currency} />
+      {/* Next recommended action when setup is incomplete */}
+      <NextActionCard tenantId={tenant.id} tenantSlug={tenant.slug} />
 
-      {/* Weekly AI performance digest */}
-      <WeeklyAiSummaryCard callLogs={callLogs} currency={currency} />
-
-      {/* ── Advanced items (hidden in front-desk mode) ────────────────── */}
-
-      {!isFrontDesk && (
-        <>
-          {/* Onboarding wizard (dismissible, DB-backed with localStorage fallback) */}
-          <OnboardingWizard
-            tenantId={tenant.id}
-            tenantSlug={tenant.slug}
-            tenantName={tenant.name}
-            tenantLogoUrl={tenant.logo_url}
-            tenantBrandColor={tenant.brand_color}
-          />
-
-          {/* Next recommended action when setup is incomplete (shown after wizard is dismissed) */}
-          <NextActionCard tenantId={tenant.id} tenantSlug={tenant.slug} />
-
-          {/* Quick actions strip */}
-          <QuickActionsStrip
-            tenantSlug={tenant.slug}
-            failedDeliveries={failedDeliveries}
-          />
-
-          {/* Persistent system alerts — fetches from /api/alerts */}
-          <SystemAlertsCard />
-
-          {/* AI-driven recommended actions */}
-          {recommendedActions && recommendedActions.length > 0 && (
-            <RecommendedActionsCard actions={recommendedActions} />
-          )}
-
-          {/* System status snapshot */}
-          <SystemStatusCard
-            callLogs={callLogs}
-            integrationsCount={integrationsCount}
-            integrationsHealthy={integrationsHealthy}
-            billing={billing}
-          />
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-2">
-              <RoiChart data={metrics.chartSeries} currency={currency} tenantSlug={tenant.slug} />
-            </div>
-            <div>
-              <TenantInfoCard tenant={tenant} />
-            </div>
-          </div>
-
-          {/* Conversion funnel + weekly report */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <ConversionTimeline callLogs={callLogs} />
-            <WeeklyReportCard callLogs={callLogs} currency={currency} />
-          </div>
-
-          {/* Service performance insights (keyword-matched) */}
-          {services.length > 0 && (
-            <ServicePerformanceCard callLogs={callLogs} services={services} currency={currency} />
-          )}
-
-          {/* Top services (only shown when services are configured) */}
-          {services.length > 0 && (
-            <TopServicesCard callLogs={callLogs} services={services} currency={currency} />
-          )}
-
-          {/* Data Quality / Trust Center */}
-          <DataQualityCard
-            callLogs={callLogs}
-            services={services}
-            hasIntegrations={(integrationsCount ?? 0) > 0}
-          />
-        </>
+      {/* AI-driven recommended actions */}
+      {recommendedActions && recommendedActions.length > 0 && (
+        <RecommendedActionsCard actions={recommendedActions} />
       )}
 
-      <CallLogsTable
-        initialData={callLogs}
-        totalCount={totalCount}
-        clientId={clientId}
-        onSelectCall={onSelectCall}
+      {/* Persistent system alerts */}
+      <SystemAlertsCard />
+
+      {/* Operations: merged system health + integration info */}
+      <OperationsPanel
+        callLogs={callLogs}
+        tenant={tenant}
+        integrationsCount={integrationsCount}
+        integrationsHealthy={integrationsHealthy}
+        billing={billing}
+      />
+
+      {/* Data Quality / Trust Center */}
+      <DataQualityCard
+        callLogs={callLogs}
+        services={services}
+        hasIntegrations={(integrationsCount ?? 0) > 0}
       />
     </div>
   )
@@ -315,13 +404,16 @@ function InboundTab({
   const { t } = useLanguage()
 
   // Use direction field when available (migration 004+).
-  // Fall back to call_type proxy for existing rows where direction is NULL.
+  // NULL direction defaults to inbound — most Retell calls arrive without an
+  // explicit direction tag. Outbound calls are explicitly tagged direction='outbound'.
   const inboundLogs = useMemo(
     () =>
       callLogs.filter((c) => {
-        if (c.direction !== null && c.direction !== undefined) return c.direction === 'inbound'
-        // Backward compat: inbound_inquiry is always inbound; is_lead covers other patterns
-        return c.call_type === 'inbound_inquiry' || c.is_lead
+        if (c.direction === 'outbound') return false
+        if (c.direction === 'inbound') return true
+        // NULL direction — include unless call_type is clearly outbound
+        if ((c.call_type as string) === 'outbound_call') return false
+        return true
       }),
     [callLogs],
   )
@@ -387,12 +479,22 @@ function OutboundTab({
   callLogs,
   currency,
   clientId,
+  tenant,
   onSelectCall,
-}: Pick<DashboardTabsProps, 'callLogs' | 'currency' | 'clientId'> & {
+}: Pick<DashboardTabsProps, 'callLogs' | 'currency' | 'clientId' | 'tenant'> & {
   onSelectCall: (log: CallLog) => void
 }) {
   const { t } = useLanguage()
   const [subTab, setSubTab] = useState<OutboundSubTab>('speed-to-lead')
+
+  // Live Younger uses a unified view without subtabs
+  if (tenant.slug === 'live-younger') {
+    return (
+      <div className="p-6 space-y-4 animate-fade-in">
+        <SpeedToLeadTab callLogs={callLogs} currency={currency} clientId={clientId} onSelectCall={onSelectCall} />
+      </div>
+    )
+  }
 
   const subTabs: { key: OutboundSubTab; label: string }[] = [
     { key: 'speed-to-lead', label: t.dashboard.speedToLead },
@@ -513,19 +615,18 @@ function SpeedToLeadTab({
 export function DashboardTabs(props: DashboardTabsProps) {
   const { metrics, callLogs, totalCount, currency, clientId, tenant } = props
   const { t } = useLanguage()
+  const { mode } = useFrontDeskMode()
   const [tab, setTab] = useState<MainTab>('overview')
   const [selectedCall, setSelectedCall] = useState<CallLog | null>(null)
 
   const mainTabs: { key: MainTab; label: string }[] = [
     { key: 'overview', label: t.dashboard.overview },
-    { key: 'inbound', label: t.dashboard.inbound },
-    { key: 'outbound', label: t.dashboard.outbound },
   ]
 
   return (
     <>
       {/* Call detail side panel — global, outside tab container so it overlays everything */}
-      <CallDetailPanel log={selectedCall} onClose={() => setSelectedCall(null)} />
+      <CallDetailPanel log={selectedCall} onClose={() => setSelectedCall(null)} tenantSlug={tenant.slug} />
 
       <div className="flex flex-col min-h-0">
         {/* Main tab navigation */}
@@ -535,19 +636,7 @@ export function DashboardTabs(props: DashboardTabsProps) {
 
         {/* Tab panels */}
         {tab === 'overview' && (
-          <OverviewTab {...props} onSelectCall={setSelectedCall} />
-        )}
-        {tab === 'inbound' && (
-          <InboundTab
-            callLogs={callLogs}
-            totalCount={totalCount}
-            currency={currency}
-            clientId={clientId}
-            onSelectCall={setSelectedCall}
-          />
-        )}
-        {tab === 'outbound' && (
-          <OutboundTab callLogs={callLogs} currency={currency} clientId={clientId} onSelectCall={setSelectedCall} />
+          <OverviewTab {...props} recentBookings={props.recentBookings} onSelectCall={setSelectedCall} />
         )}
       </div>
     </>

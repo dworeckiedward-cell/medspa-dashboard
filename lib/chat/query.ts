@@ -460,23 +460,27 @@ function deriveBookingOutcome(conv: ChatConversation, lead: ChatLead | null): Bo
 
 // ── Scaffold data (shown when tables don't exist / no data) ──────────────
 
-function getScaffoldConversations(clientId: string): ConversationWithDetails[] {
+function getScaffoldConversations(_clientId: string): ConversationWithDetails[] {
+  // Return empty list — no fake/demo conversations in production
+  return []
+}
+
+function _getScaffoldConversationsLegacy(clientId: string): ConversationWithDetails[] {
   const now = new Date().toISOString()
-  const channels: ChatChannel[] = ['sms', 'instagram', 'whatsapp']
   const statuses: ConversationStatus[] = ['new', 'active', 'qualified', 'booked', 'closed_won']
   const names = ['Sarah M.', 'Jessica L.', 'Amanda K.', 'Maria R.', 'Emily T.']
   const previews = [
     'Hi! I\'d like to book a Botox appointment',
     'Do you offer lip filler packages?',
     'What are your hours this week?',
-    'I saw your Instagram post about the facial treatment',
+    'I saw your ad about the facial treatment',
     'Can I reschedule my appointment?',
   ]
 
   return names.map((name, i) => ({
     id: `scaffold-conv-${i}`,
     clientId,
-    channel: channels[i % channels.length],
+    channel: 'sms' as ChatChannel,
     externalThreadId: null,
     externalPlatform: null,
     contactName: name,

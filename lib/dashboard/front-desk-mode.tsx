@@ -1,12 +1,14 @@
 'use client'
 
 /**
- * Front-desk Mode — simplified dashboard view for day-to-day operations.
+ * View Mode — controls dashboard density / audience level.
  *
- * Hides analytics/advanced cards, keeps only core operational items:
- * KPIs, call logs, needs-attention, AI status.
+ *   simple   → front-desk staff: KPIs, call logs, needs-attention, AI status only.
+ *   operator → default for clinic owners: full dashboard.
+ *   analyst  → power users: full dashboard (future: extra detail columns).
  *
  * State persisted to localStorage per-tenant.
+ * Backward-compat: `isFrontDesk` ≡ mode === 'simple', `toggle()` cycles simple↔operator.
  */
 
 import {
@@ -18,7 +20,17 @@ import {
   type ReactNode,
 } from 'react'
 
-// ── Storage ──────────────────────────────────────────────────────────────────
+// ── View modes ──────────────────────────────────────────────────────────────
+
+export type ViewMode = 'simple' | 'operator' | 'analyst'
+
+const VIEW_MODES: ViewMode[] = ['simple', 'operator', 'analyst']
+
+function isViewMode(v: unknown): v is ViewMode {
+  return typeof v === 'string' && VIEW_MODES.includes(v as ViewMode)
+}
+
+// ── Storage ─────────────────────────────────────────────────────────────────
 
 function storageKey(tenantSlug?: string): string {
   return tenantSlug
@@ -26,36 +38,43 @@ function storageKey(tenantSlug?: string): string {
     : 'servify:view:mode'
 }
 
-function readFrontDeskMode(tenantSlug?: string): boolean {
-  if (typeof window === 'undefined') return false
+function readMode(tenantSlug?: string): ViewMode {
+  if (typeof window === 'undefined') return 'operator'
   try {
-    return localStorage.getItem(storageKey(tenantSlug)) === 'simple'
+    const raw = localStorage.getItem(storageKey(tenantSlug))
+    // Backward compat: old boolean stored 'simple' for on
+    if (isViewMode(raw)) return raw
+    return 'operator'
   } catch {
-    return false
+    return 'operator'
   }
 }
 
-function writeFrontDeskMode(active: boolean, tenantSlug?: string): void {
+function writeMode(mode: ViewMode, tenantSlug?: string): void {
   if (typeof window === 'undefined') return
   try {
-    if (active) {
-      localStorage.setItem(storageKey(tenantSlug), 'simple')
-    } else {
-      localStorage.removeItem(storageKey(tenantSlug))
-    }
+    localStorage.setItem(storageKey(tenantSlug), mode)
   } catch {
     // silently ignore
   }
 }
 
-// ── Context ──────────────────────────────────────────────────────────────────
+// ── Context ─────────────────────────────────────────────────────────────────
 
 interface FrontDeskModeContextValue {
+  /** Current view mode */
+  mode: ViewMode
+  /** Set the view mode directly */
+  setMode: (mode: ViewMode) => void
+  /** Backward compat: true when mode === 'simple' */
   isFrontDesk: boolean
+  /** Backward compat: toggles simple ↔ operator */
   toggle: () => void
 }
 
 const FrontDeskModeContext = createContext<FrontDeskModeContextValue>({
+  mode: 'operator',
+  setMode: () => {},
   isFrontDesk: false,
   toggle: () => {},
 })
@@ -64,7 +83,7 @@ export function useFrontDeskMode() {
   return useContext(FrontDeskModeContext)
 }
 
-// ── Provider ─────────────────────────────────────────────────────────────────
+// ── Provider ────────────────────────────────────────────────────────────────
 
 interface FrontDeskModeProviderProps {
   tenantSlug?: string
@@ -75,22 +94,32 @@ export function FrontDeskModeProvider({
   tenantSlug,
   children,
 }: FrontDeskModeProviderProps) {
-  const [isFrontDesk, setIsFrontDesk] = useState(false)
+  const [mode, setModeState] = useState<ViewMode>('operator')
 
   useEffect(() => {
-    setIsFrontDesk(readFrontDeskMode(tenantSlug))
+    setModeState(readMode(tenantSlug))
   }, [tenantSlug])
 
+  const setMode = useCallback(
+    (next: ViewMode) => {
+      setModeState(next)
+      writeMode(next, tenantSlug)
+    },
+    [tenantSlug],
+  )
+
   const toggle = useCallback(() => {
-    setIsFrontDesk((prev) => {
-      const next = !prev
-      writeFrontDeskMode(next, tenantSlug)
+    setModeState((prev) => {
+      const next = prev === 'simple' ? 'operator' : 'simple'
+      writeMode(next, tenantSlug)
       return next
     })
   }, [tenantSlug])
 
+  const isFrontDesk = mode === 'simple'
+
   return (
-    <FrontDeskModeContext.Provider value={{ isFrontDesk, toggle }}>
+    <FrontDeskModeContext.Provider value={{ mode, setMode, isFrontDesk, toggle }}>
       {children}
     </FrontDeskModeContext.Provider>
   )

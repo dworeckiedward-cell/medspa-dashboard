@@ -5,6 +5,7 @@
  *
  * Sections:
  *  • Header:       title, caller, date/time, duration, direction + status badges
+ *  • Recording:    audio player + download link (when recording_url exists)
  *  • AI Summary:   structured fields from ai_summary_json (intent, urgency, sentiment,
  *                  objections, key facts, next best action, callback script)
  *  • Action Items: follow-up flag + checklist derived from the structured summary
@@ -12,7 +13,9 @@
  *  • Transcript:   collapsible, role-parsed bubbles, search highlight, copy button
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useDashboardData } from './dashboard-data-provider'
 import { format, parseISO } from 'date-fns'
 import {
   Phone,
@@ -29,12 +32,18 @@ import {
   Zap,
   Target,
   MessageSquare,
+  Mic,
+  Download,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react'
-import { Sheet, SheetContent, SheetSection } from '@/components/ui/sheet'
+import { RecordingPlayer } from './recording-player'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDuration, cn } from '@/lib/utils'
+import { buildTenantApiUrl } from '@/lib/dashboard/tenant-api'
 import type { CallLog, CallDisposition, CallSentiment } from '@/types/database'
 import { CALL_DISPOSITION_LABELS, CALL_INTENT_LABELS } from '@/types/database'
 
@@ -97,9 +106,10 @@ function parseTranscript(raw: string | null | undefined): TranscriptLine[] {
 // ── Sentiment / urgency ──────────────────────────────────────────────────────
 
 const sentimentConfig: Record<string, { label: string; className: string }> = {
-  positive: { label: 'Positive', className: 'text-emerald-600 dark:text-emerald-400' },
-  neutral:  { label: 'Neutral',  className: 'text-[var(--brand-muted)]' },
-  negative: { label: 'Negative', className: 'text-rose-600 dark:text-rose-400' },
+  positive:  { label: 'Positive',  className: 'text-emerald-600 dark:text-emerald-400' },
+  neutral:   { label: 'Neutral',   className: 'text-[var(--brand-muted)]' },
+  negative:  { label: 'Negative',  className: 'text-rose-600 dark:text-rose-400' },
+  follow_up: { label: 'Follow-up', className: 'text-amber-600 dark:text-amber-400' },
 }
 
 const urgencyConfig: Record<string, { label: string; variant: 'destructive' | 'warning' | 'muted' }> = {
@@ -151,12 +161,33 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
 interface CallDetailPanelProps {
   log: CallLog | null
   onClose: () => void
+  onDeleted?: () => void
+  tenantSlug?: string | null
 }
 
-export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
+export function CallDetailPanel({ log, onClose, onDeleted, tenantSlug }: CallDetailPanelProps) {
+  const router = useRouter()
+  const ctx = useDashboardData()
   const [transcriptOpen, setTranscriptOpen] = useState(false)
   const [transcriptSearch, setTranscriptSearch] = useState('')
   const [copied, setCopied] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [markingLead, setMarkingLead] = useState(false)
+  const [isLead, setIsLead] = useState<boolean | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  // Reset all action state when a different call is opened
+  useEffect(() => {
+    setTranscriptOpen(false)
+    setTranscriptSearch('')
+    setCopied(false)
+    setRefreshing(false)
+    setMarkingLead(false)
+    setIsLead(null)
+    setConfirmDelete(false)
+    setDeleting(false)
+  }, [log?.id])
 
   const structured = useMemo(
     () => parseStructuredSummary(log?.ai_summary_json ?? null),
@@ -181,14 +212,63 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  async function handleRefreshFromRetell() {
+    if (!log?.id || refreshing) return
+    setRefreshing(true)
+    try {
+      const res = await fetch(`/api/call-logs/${log.id}/refresh`, { method: 'POST' })
+      if (res.ok) {
+        // Re-fetch dashboard data so recording_url and status update live
+        ctx?.refresh()
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  async function handleMarkLead() {
+    if (!log || markingLead) return
+    setMarkingLead(true)
+    try {
+      await fetch(buildTenantApiUrl(`/api/call-logs/${log.id}/mark-lead`, tenantSlug), { method: 'PATCH' })
+      setIsLead(true)
+    } catch {
+      // silently fail
+    } finally {
+      setMarkingLead(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!log || deleting) return
+    setDeleting(true)
+    try {
+      const res = await fetch(buildTenantApiUrl(`/api/call-logs/${log.id}`, tenantSlug), { method: 'DELETE' })
+      if (res.ok) {
+        router.refresh()
+        onDeleted?.()
+        onClose()
+      } else {
+        setDeleting(false)
+      }
+    } catch {
+      setDeleting(false)
+    }
+  }
+
   if (!log) {
     return null
   }
 
-  const displayDate = format(parseISO(log.created_at), 'MMM d, yyyy')
-  const displayTime = format(parseISO(log.created_at), 'h:mm a')
+  const effectiveIsLead = isLead ?? log.is_lead
 
-  const hasAiSummary = structured || log.ai_summary || log.summary
+  const startTime = log.contacted_at ?? log.created_at
+  const displayDate = format(parseISO(startTime), 'MMM d, yyyy')
+  const displayTime = format(parseISO(startTime), 'h:mm a')
+
+  const hasAiSummary = structured || log.call_summary || log.ai_summary || log.summary
   const hasTranscript = (transcriptLines.length > 0) || log.transcript
 
   const actionItems: string[] = []
@@ -201,17 +281,12 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
   }
 
   return (
-    <Sheet
-      open={!!log}
-      onClose={onClose}
-      size="lg"
-      title={log.semantic_title ?? 'Call Detail'}
-      description={`${displayDate} · ${displayTime}`}
-    >
-      <SheetContent className="space-y-0 p-0">
+    <Dialog open={!!log} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+        <div className="space-y-0">
 
         {/* ── Header card ────────────────────────────────────────────────── */}
-        <SheetSection className="px-6 pt-5 pb-4">
+        <div className="px-6 pt-5 pb-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               {/* Caller */}
@@ -258,7 +333,11 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
 
             {/* Status badges */}
             <div className="flex flex-col gap-1.5 items-end shrink-0">
-              {log.is_booked && <Badge variant="success" className="text-xs">Booked</Badge>}
+              {log.is_booked && (
+                <Badge variant="success" className="text-xs">
+                  {log.campaign_type ? `Booked · ${log.campaign_type}` : 'Booked'}
+                </Badge>
+              )}
               {log.is_lead && !log.is_booked && <Badge variant="brand" className="text-xs">Lead</Badge>}
               {log.disposition && (
                 <Badge
@@ -279,15 +358,53 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
               )}
             </div>
           </div>
-        </SheetSection>
+        </div>
+
+        {/* ── Recording ──────────────────────────────────────────────────── */}
+        <div className="px-6 py-4 border-t border-[var(--brand-border)]/50">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)] mb-3">Call Recording</p>
+          {log.recording_url ? (
+            <div className="space-y-2.5">
+              <RecordingPlayer src={log.recording_url} />
+              <a
+                href={log.recording_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download Recording
+              </a>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-[var(--brand-muted)] italic">
+                Recording not available yet.
+              </p>
+              {log.external_call_id && (
+                <button
+                  onClick={handleRefreshFromRetell}
+                  disabled={refreshing}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors disabled:opacity-50"
+                >
+                  {refreshing
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RefreshCw className="h-3.5 w-3.5" />}
+                  Refresh Call Recording
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* ── AI Summary ─────────────────────────────────────────────────── */}
         {hasAiSummary && (
-          <SheetSection title="AI Summary" className="px-6">
+          <div className="px-6 py-4 border-t border-[var(--brand-border)]/50">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)] mb-3">AI Summary</p>
             {/* Plain summary */}
-            {(log.ai_summary || log.summary) && (
+            {(log.call_summary || log.ai_summary || log.summary) && (
               <p className="text-sm text-[var(--brand-text)] leading-relaxed mb-4">
-                {log.ai_summary ?? log.summary}
+                {log.call_summary ?? log.ai_summary ?? log.summary}
               </p>
             )}
 
@@ -375,27 +492,13 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
                 )}
               </div>
             )}
-          </SheetSection>
+          </div>
         )}
 
         {/* ── Action Items ────────────────────────────────────────────────── */}
         {actionItems.length > 0 && (
-          <SheetSection title="Action Items" className="px-6">
-            {log.human_followup_needed && (
-              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900/40 dark:bg-amber-950/30 px-3 py-2.5 mb-3">
-                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-                    Human follow-up required
-                  </p>
-                  {log.human_followup_reason && (
-                    <p className="text-xs text-amber-600/80 dark:text-amber-300/70 mt-0.5">
-                      {log.human_followup_reason}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+          <div className="px-6 py-4 border-t border-[var(--brand-border)]/50">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)] mb-3">Action Items</p>
             <ul className="space-y-2">
               {actionItems.map((item, i) => (
                 <li key={i} className="flex items-start gap-2.5">
@@ -406,13 +509,14 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
                 </li>
               ))}
             </ul>
-          </SheetSection>
+          </div>
         )}
 
         {/* ── Outcome / Revenue ───────────────────────────────────────────── */}
         {(log.appointment_datetime || log.booked_at || log.booked_value > 0 ||
-          log.inquiries_value > 0 || log.lead_confidence != null || log.intent) && (
-          <SheetSection title="Outcome" className="px-6">
+          log.inquiries_value > 0 || log.intent) && (
+          <div className="px-6 py-4 border-t border-[var(--brand-border)]/50">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--brand-muted)] mb-3">Outcome</p>
             <div className="space-y-2.5">
               {log.intent && (
                 <div className="flex items-center justify-between text-xs">
@@ -446,14 +550,6 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
                   </span>
                 </div>
               )}
-              {log.lead_confidence != null && (
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-[var(--brand-muted)]">Lead confidence</span>
-                  <span className="text-[var(--brand-text)] font-semibold tabular-nums">
-                    {Math.round(log.lead_confidence * 100)}%
-                  </span>
-                </div>
-              )}
               {log.lead_source && (
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-[var(--brand-muted)]">Lead source</span>
@@ -461,12 +557,12 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
                 </div>
               )}
             </div>
-          </SheetSection>
+          </div>
         )}
 
         {/* ── Transcript ─────────────────────────────────────────────────── */}
         {hasTranscript && (
-          <SheetSection className="px-6 pb-6">
+          <div className="px-6 py-4 pb-6 border-t border-[var(--brand-border)]/50">
             <button
               className="flex w-full items-center justify-between group"
               onClick={() => setTranscriptOpen((o) => !o)}
@@ -554,7 +650,7 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
                 </div>
               </div>
             )}
-          </SheetSection>
+          </div>
         )}
 
         {/* Summary status pill — shown when AI processing is in progress */}
@@ -567,7 +663,58 @@ export function CallDetailPanel({ log, onClose }: CallDetailPanelProps) {
           </div>
         )}
 
-      </SheetContent>
-    </Sheet>
+        {/* ── Actions footer ─────────────────────────────────────────────── */}
+        <div className="px-6 py-4 border-t border-[var(--brand-border)]/50 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {!effectiveIsLead && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleMarkLead}
+                disabled={markingLead}
+                className="text-xs h-8"
+              >
+                {markingLead ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : null}
+                Mark as Lead
+              </Button>
+            )}
+            {effectiveIsLead && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 bg-amber-100 rounded-full px-3 py-1">
+                Lead
+              </span>
+            )}
+          </div>
+
+          {/* Delete */}
+          {!confirmDelete ? (
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="text-xs text-rose-500 hover:text-rose-700 transition-colors"
+            >
+              Delete call
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--brand-muted)]">Delete this call?</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-xs font-semibold text-rose-600 hover:text-rose-800 transition-colors"
+              >
+                {deleting ? 'Deleting…' : 'Confirm'}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-xs text-[var(--brand-muted)] hover:text-[var(--brand-text)]"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ChevronDown, RotateCcw, AlertTriangle } from 'lucide-react'
+import { HexColorPicker } from 'react-colorful'
 import { cn } from '@/lib/utils'
 import {
   useCustomTheme,
@@ -39,7 +40,28 @@ function ColorFieldRow({
   onChange: (hex: string) => void
 }) {
   const [inputValue, setInputValue] = useState(value)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const isValid = isValidHex(inputValue)
+
+  // Close picker on outside click or Escape
+  useEffect(() => {
+    if (!pickerOpen) return
+    function onPointerDown(e: PointerEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setPickerOpen(false)
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setPickerOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [pickerOpen])
 
   function handleInputChange(raw: string) {
     let hex = raw
@@ -58,7 +80,6 @@ function ColorFieldRow({
 
   // Sync external value changes (e.g. preset reset)
   if (isValidHex(value) && value !== inputValue && isValidHex(inputValue)) {
-    // Only sync when value comes from outside (preset reset)
     if (value.toLowerCase() !== inputValue.toLowerCase()) {
       setInputValue(value)
     }
@@ -89,22 +110,29 @@ function ColorFieldRow({
         )}
       </div>
 
-      {/* Color picker + swatch + hex input */}
+      {/* Swatch trigger + popover + hex input */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Native color picker */}
-        <label className="relative cursor-pointer">
-          <div
-            className="h-7 w-7 rounded-lg border border-black/10 shadow-sm"
+        {/* Swatch — opens react-colorful popover */}
+        <div ref={popoverRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setPickerOpen((o) => !o)}
+            className="h-7 w-7 rounded-lg border border-black/10 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--user-accent)] focus-visible:ring-offset-1"
             style={{ background: isValid ? inputValue : value }}
-          />
-          <input
-            type="color"
-            value={isValid ? inputValue : value}
-            onChange={(e) => handlePickerChange(e.target.value)}
-            className="absolute inset-0 opacity-0 cursor-pointer"
             aria-label={`Pick ${config.label} color`}
           />
-        </label>
+          {pickerOpen && (
+            <div className="absolute right-0 top-9 z-50 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 shadow-xl">
+              <HexColorPicker
+                color={isValid ? inputValue : value}
+                onChange={handlePickerChange}
+              />
+              <p className="mt-2 text-center text-[10px] font-mono text-[var(--brand-muted)]">
+                {isValid ? inputValue.toUpperCase() : value.toUpperCase()}
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* HEX input */}
         <input

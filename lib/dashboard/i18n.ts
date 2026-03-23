@@ -32,6 +32,9 @@ const dict = {
       aiReceptionist: 'AI Receptionist',
       conversations: 'Conversations',
       support: 'Support',
+      revenueProof: 'Revenue Proof',
+      agentOptimization: 'Agent Optimization',
+      appointments: 'Appointments',
     },
     settings: {
       pageTitle: 'Settings',
@@ -60,6 +63,7 @@ const dict = {
       overview: 'Overview',
       inbound: 'Inbound',
       outbound: 'Outbound',
+      setupTips: 'Setup & Tips',
       speedToLead: 'Speed-to-Lead',
       remindersReactivation: 'Reminders & Reactivation',
       inboundCalls: 'Inbound Calls',
@@ -70,6 +74,9 @@ const dict = {
       leadBookingRate: 'Lead → Booking Rate',
       comingSoon: 'Coming Soon',
       comingSoonDesc: 'This section is being built. Backend data classification coming next.',
+      recentCalls: 'Recent Calls',
+      revenuePipeline: 'Revenue Pipeline',
+      executiveSummary: 'Executive Summary',
     },
     leads: {
       pageTitle: 'Leads',
@@ -101,7 +108,7 @@ const dict = {
     followUp: {
       pageTitle: 'Follow-up Queue',
       pageSubtitle: `Operational queue for leads the AI couldn't fully close.`,
-      tabCallBackNow: 'Call Back Now',
+      tabCallBackNow: 'Call Back',
       tabInterested: 'Interested',
       tabNoShow: 'No-show',
       tabReminders: 'Reminders',
@@ -164,6 +171,9 @@ const dict = {
       aiReceptionist: 'Asystent AI',
       conversations: 'Rozmowy',
       support: 'Wsparcie',
+      revenueProof: 'Dowód przychodu',
+      agentOptimization: 'Optymalizacja agenta',
+      appointments: 'Wizyty',
     },
     settings: {
       pageTitle: 'Ustawienia',
@@ -201,6 +211,10 @@ const dict = {
       leadBookingRate: 'Lead → Rezerwacja',
       comingSoon: 'Wkrótce dostępne',
       comingSoonDesc: 'Ta sekcja jest w budowie. Klasyfikacja danych backendu już wkrótce.',
+      setupTips: 'Konfiguracja i wskazówki',
+      recentCalls: 'Ostatnie połączenia',
+      revenuePipeline: 'Przychody',
+      executiveSummary: 'Podsumowanie',
     },
     leads: {
       pageTitle: 'Leady',
@@ -295,6 +309,9 @@ const dict = {
       aiReceptionist: 'Recepcionista IA',
       conversations: 'Conversaciones',
       support: 'Soporte',
+      revenueProof: 'Prueba de ingresos',
+      agentOptimization: 'Optimización de agente',
+      appointments: 'Citas',
     },
     settings: {
       pageTitle: 'Configuración',
@@ -333,6 +350,10 @@ const dict = {
       leadBookingRate: 'Lead → Reserva',
       comingSoon: 'Próximamente',
       comingSoonDesc: 'Esta sección está en construcción. La clasificación de datos backend llegará pronto.',
+      setupTips: 'Configuración y consejos',
+      recentCalls: 'Llamadas recientes',
+      revenuePipeline: 'Ingresos',
+      executiveSummary: 'Resumen ejecutivo',
     },
     leads: {
       pageTitle: 'Leads',
@@ -423,7 +444,7 @@ export type TranslationDict = {
   nav: {
     dashboard: string; leads: string; callLogs: string; followUp: string
     integrations: string; reports: string; settings: string; aiReceptionist: string
-    conversations: string; support: string
+    conversations: string; support: string; revenueProof: string; agentOptimization: string; appointments: string
   }
   settings: {
     pageTitle: string; pageSubtitle: string; appearance: string; appearanceDesc: string
@@ -438,6 +459,7 @@ export type TranslationDict = {
     inboundCalls: string; leadsGenerated: string; inquiriesValue: string
     newLeads: string; followUpsNeeded: string; leadBookingRate: string
     comingSoon: string; comingSoonDesc: string
+    setupTips: string; recentCalls: string; revenuePipeline: string; executiveSummary: string
   }
   leads: {
     pageTitle: string; pageSubtitle: string; search: string

@@ -1,5 +1,5 @@
 /**
- * Realistic MedSpa mock fixtures for UI development.
+ * Realistic mock fixtures for UI development.
  *
  * All timestamps are expressed as relative-to-now ISO strings so fixtures
  * don't go stale as the date changes.

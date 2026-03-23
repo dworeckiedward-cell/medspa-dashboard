@@ -1,6 +1,6 @@
 # Deployment & Client Onboarding Checklist
 
-Internal operator guide for deploying and onboarding new MedSpa AI Receptionist clients.
+Internal operator guide for deploying and onboarding new AI Voice Agent clients.
 
 ---
 
@@ -143,7 +143,7 @@ These features are scaffolded but **not fully implemented**:
 | Email report | Button visible, disabled | Tooltip explains "Coming Soon" | No email sending |
 | HubSpot integration | Config CRUD works | Can save webhookUrl/apiKey | No real HubSpot API calls |
 | GoHighLevel integration | Config CRUD works | Can save config | No real GHL API calls |
-| Native MedSpa connectors | Provider registry metadata | Shows in UI with "Coming Soon" badges | No API integration |
+| Native Practice Management connectors | Provider registry metadata | Shows in UI with "Coming Soon" badges | No API integration |
 | Onboarding DB persistence | Table + API ready | Works when migration 009 applied | Falls back to localStorage if not |
 
 ---
