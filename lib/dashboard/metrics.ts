@@ -68,7 +68,7 @@ export async function getDashboardMetrics(
   const baseQuery = supabase
     .from('call_logs')
     .select(
-      'id, created_at, is_booked, is_lead, duration_seconds, potential_revenue, booked_value, inquiries_value, response_time_seconds, disconnect_reason, disposition, transcript, direction, caller_name, caller_phone',
+      'id, created_at, is_booked, is_lead, duration_seconds, potential_revenue, booked_value, inquiries_value, response_time_seconds, disconnect_reason, disposition, transcript, direction, caller_name, caller_phone, sentiment',
     )
     .eq('client_id', clientId)
     .order('created_at', { ascending: true })
@@ -126,10 +126,13 @@ export async function getDashboardMetrics(
   const potentialRevenue = bookingsList
     .filter((b) => b.payment_status === 'paid')
     .reduce((sum, b) => sum + (b.amount_cents ?? 0) / 100, 0)
-  // Sum of potential_revenue from lead calls — estimated pipeline value
-  const pipelineRevenue = meaningful
-    .filter((c) => c.is_lead && (c.potential_revenue ?? 0) > 0)
-    .reduce((sum, c) => sum + (c.potential_revenue ?? 0), 0)
+  // Pipeline revenue: $150 per positive-sentiment call, else sum potential_revenue
+  const positiveCount = meaningful.filter((c) => c.sentiment === 'positive').length
+  const pipelineRevenue = positiveCount > 0
+    ? positiveCount * 150
+    : meaningful
+        .filter((c) => c.is_lead && (c.potential_revenue ?? 0) > 0)
+        .reduce((sum, c) => sum + (c.potential_revenue ?? 0), 0)
   const totalSeconds = meaningful.reduce((sum, c) => sum + (c.duration_seconds ?? 0), 0)
   const hoursSaved = Math.round((totalSeconds / 3600) * 10) / 10
 

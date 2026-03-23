@@ -62,9 +62,10 @@ export function KpiCards({ metrics, currency = 'USD', priorMetrics, features, ra
     ? `${metrics.totalCalls} total · ${breakdownParts.length > 0 ? breakdownParts.join(', ') + ' filtered' : 'all meaningful'}`
     : 'No calls yet'
 
-  const showAppointments  = features?.showAppointments  !== false
-  const showBookedRevenue = features?.showBookedRevenue !== false
-  const janeApi           = features?.janeApi           !== false
+  const showAppointments      = features?.showAppointments      !== false
+  const showBookedRevenue     = features?.showBookedRevenue     !== false
+  const janeApi               = features?.janeApi               !== false
+  const showPotentialRevenue  = features?.showPotentialRevenue  !== false
 
   const hoursSavedValue = metrics.hoursSaved > 0
     ? metrics.hoursSaved < 1
@@ -195,9 +196,13 @@ export function KpiCards({ metrics, currency = 'USD', priorMetrics, features, ra
         },
       ]
 
+  const visibleCards = showPotentialRevenue
+    ? cards
+    : cards.filter((c) => c.title !== 'Potential Revenue')
+
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
-      {cards.map((card) => (
+      {visibleCards.map((card) => (
         <KpiCard key={card.title} {...card} />
       ))}
     </div>
