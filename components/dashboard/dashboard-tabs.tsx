@@ -12,7 +12,6 @@ import {
   Zap,
   Bell,
   Construction,
-  ArrowRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { cn, polish, formatCurrency } from '@/lib/utils'
@@ -299,16 +298,7 @@ function OverviewTab({
         <ConversionTimeline callLogs={callLogs} tenantSlug={tenant.slug} showBookedSteps={features.showAppointments} />
       )}
 
-      {/* CTA — visible in all modes including simple */}
-      <div className="flex justify-end -mt-2">
-        <Link
-          href={buildDashboardHref('/dashboard/call-logs', tenant.slug)}
-          className="inline-flex items-center gap-1 text-xs font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors duration-150"
-        >
-          View all calls
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
+      {/* CTA removed — RecentCallsPreview already has its own "View All" link */}
 
       {/* ── Below the fold (hidden in simple mode) ────────────────── */}
 
