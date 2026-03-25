@@ -1,6 +1,4 @@
-import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
 import { getAllClientOverviews } from '@/lib/ops/query'
-import { logOperatorAction } from '@/lib/ops/audit'
 import { OpsFinancialKpiStrip } from '@/components/ops/ops-financial-kpi-strip'
 import { CacSourceSummaryCard } from '@/components/ops/cac-source-summary-card'
 import { AcquisitionCohortsCard } from '@/components/ops/acquisition-cohorts-card'
@@ -12,18 +10,12 @@ import { computeOpsFinancialKpis } from '@/lib/ops-financials/compute'
 export const dynamic = 'force-dynamic'
 
 export default async function OpsFinancialsPage() {
-  const access = await resolveOperatorAccess()
-  if (!access.authorized) return null // Layout handles unauthorized
+  // Auth is handled by the shared layout.
 
   // ── Data fetch ──────────────────────────────────────────────────────────
   const [overviews, unitEconomics] = await Promise.all([
     getAllClientOverviews(),
     getAllClientUnitEconomics(),
-    logOperatorAction({
-      operatorId: access.userId ?? 'unknown',
-      operatorEmail: access.email,
-      action: 'ops_console_viewed',
-    }),
   ])
 
   // ── Unit economics aggregations ─────────────────────────────────────────

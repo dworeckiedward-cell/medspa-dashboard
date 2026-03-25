@@ -1,8 +1,6 @@
-import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
 import { getAllClientOverviews, getAllRecentDeliveryLogs } from '@/lib/ops/query'
 import { computeClientHealth, type HealthLevel } from '@/lib/ops/health-score'
 import { deriveOpsAlerts } from '@/lib/ops/alerts'
-import { logOperatorAction } from '@/lib/ops/audit'
 import { listOpsRequests } from '@/lib/support/query'
 import { computeOpsOverviewMetrics, OPS_RANGE_OPTIONS, type OpsChartPoint } from '@/lib/ops/ops-overview-metrics'
 import { OpsKpiStrip } from '@/components/ops/ops-kpi-strip'
@@ -17,8 +15,7 @@ import type { ClientHealthScore } from '@/lib/ops/health-score'
 export const dynamic = 'force-dynamic'
 
 export default async function OpsOverviewPage() {
-  const access = await resolveOperatorAccess()
-  if (!access.authorized) return null // Layout handles unauthorized
+  // Auth is handled by the shared layout — no need to check again here.
 
   // ── Data fetch ──────────────────────────────────────────────────────────
   const [overviews, deliveryLogs, unitEconomics, recentRequests] = await Promise.all([
@@ -26,11 +23,6 @@ export default async function OpsOverviewPage() {
     getAllRecentDeliveryLogs(24, 200),
     getAllClientUnitEconomics(),
     listOpsRequests({ status: ['open', 'acknowledged', 'in_progress', 'waiting_for_client', 'reopened'], limit: 5 }),
-    logOperatorAction({
-      operatorId: access.userId ?? 'unknown',
-      operatorEmail: access.email,
-      action: 'ops_console_viewed',
-    }),
   ])
 
   // ── Health scoring ───────────────────────────────────────────────────────

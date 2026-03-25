@@ -1,7 +1,5 @@
-import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
 import { getAllClientOverviews, getAllRecentDeliveryLogs } from '@/lib/ops/query'
 import { computeClientHealth } from '@/lib/ops/health-score'
-import { logOperatorAction } from '@/lib/ops/audit'
 import { OpsClientsTable } from '@/components/ops/ops-clients-table'
 import { getAllClientUnitEconomics } from '@/lib/ops/unit-economics/query'
 import { getAllCommercialSnapshots } from '@/lib/ops-financials/query'
@@ -11,19 +9,13 @@ import { cn, polish } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 
 export default async function OpsClientsPage() {
-  const access = await resolveOperatorAccess()
-  if (!access.authorized) return null // Layout handles unauthorized
+  // Auth is handled by the shared layout.
 
   // ── Data fetch ──────────────────────────────────────────────────────────
   const [overviews, deliveryLogs, unitEconomics] = await Promise.all([
     getAllClientOverviews(),
     getAllRecentDeliveryLogs(24, 200),
     getAllClientUnitEconomics(),
-    logOperatorAction({
-      operatorId: access.userId ?? 'unknown',
-      operatorEmail: access.email,
-      action: 'ops_console_viewed',
-    }),
   ])
 
   // ── Health scoring ───────────────────────────────────────────────────────

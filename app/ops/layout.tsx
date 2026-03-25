@@ -25,6 +25,8 @@ import { OpsHeaderActions } from '@/components/ops/ops-header-actions'
 import { OpsTabNav } from '@/components/ops/ops-tab-nav'
 import { ServifyLogo } from '@/components/branding/servify-logo'
 
+export const dynamic = 'force-dynamic'
+
 export default async function OpsLayout({ children }: { children: React.ReactNode }) {
   const access = await resolveOperatorAccess()
 
