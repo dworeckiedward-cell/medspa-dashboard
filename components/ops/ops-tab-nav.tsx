@@ -24,7 +24,7 @@ export function OpsTabNav() {
 
   return (
     <nav className="border-b border-[#1e1e2e] bg-[#0a0a0f]/80 backdrop-blur-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex gap-1 overflow-x-auto scrollbar-none -mb-px">
           {TABS.map(({ href, label, icon: Icon }) => {
             const isActive =
