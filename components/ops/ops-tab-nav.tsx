@@ -23,7 +23,7 @@ export function OpsTabNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="border-b border-[#1e1e2e] bg-[#0a0a0f]/80 backdrop-blur-sm">
+    <nav className="border-b border-[var(--brand-border)] bg-[var(--brand-bg)]/80 backdrop-blur-sm">
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex gap-1 overflow-x-auto scrollbar-none -mb-px">
           {TABS.map(({ href, label, icon: Icon }) => {
@@ -36,20 +36,19 @@ export function OpsTabNav() {
                 className={cn(
                   'group relative flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium whitespace-nowrap transition-colors duration-150',
                   isActive
-                    ? 'text-[#818cf8]'
-                    : 'text-[#71717a] hover:text-[#f0f0f5]',
+                    ? 'text-[var(--brand-primary)]'
+                    : 'text-[var(--brand-muted)] hover:text-[var(--brand-text)]',
                 )}
               >
                 <Icon
                   className={cn(
                     'h-3.5 w-3.5 shrink-0',
-                    isActive ? 'text-[#6366f1]' : 'text-[#71717a] group-hover:text-[#f0f0f5]',
+                    isActive ? 'text-[var(--brand-primary)]' : 'text-[var(--brand-muted)] group-hover:text-[var(--brand-text)]',
                   )}
                 />
                 {label}
-                {/* Active indicator bar */}
                 {isActive && (
-                  <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-t-full bg-[#6366f1]" />
+                  <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-t-full bg-[var(--brand-primary)]" />
                 )}
               </Link>
             )

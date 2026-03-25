@@ -66,8 +66,8 @@ export function OpsCurrencyToggle() {
       onClick={toggle}
       className={cn(
         'flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors',
-        'border border-[#1e1e2e] bg-[#12121a] hover:bg-[#1e1e2e]',
-        'text-[#f0f0f5]',
+        'border border-[var(--brand-border)] bg-[var(--brand-surface)] hover:bg-[var(--brand-border)]',
+        'text-[var(--brand-text)]',
       )}
       title={`Switch to ${currency === 'USD' ? 'PLN' : 'USD'}`}
     >
@@ -75,7 +75,7 @@ export function OpsCurrencyToggle() {
         'transition-opacity',
         currency === 'USD' ? 'opacity-100' : 'opacity-40',
       )}>$</span>
-      <span className="text-[#71717a]">/</span>
+      <span className="text-[var(--brand-muted)]">/</span>
       <span className={cn(
         'transition-opacity',
         currency === 'PLN' ? 'opacity-100' : 'opacity-40',
