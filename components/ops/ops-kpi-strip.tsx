@@ -1,9 +1,9 @@
 'use client'
 
 /**
- * OpsKpiStrip — compact 6-card KPI row for the ops overview.
+ * OpsKpiStrip — compact 4-card KPI row for the ops overview.
  *
- * Active Clients | Active MRR | Bookings | Total Revenue | Avg Health | Critical
+ * Active Clients | Active MRR | Bookings | Total Revenue
  */
 
 import {
@@ -11,12 +11,10 @@ import {
   TrendingUp,
   CalendarCheck,
   DollarSign,
-  HeartPulse,
-  AlertTriangle,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import { formatMoneyCompact } from '@/lib/ops-financials/format'
+import { useOpsCurrency } from '@/components/ops/ops-currency-toggle'
 
 interface OpsKpi {
   label: string
@@ -40,13 +38,11 @@ export interface OpsKpiStripProps {
 export function OpsKpiStrip({
   totalClients,
   healthyClients,
-  criticalClients,
-  totalCalls,
   totalBookings,
   totalLtv,
   activeMrr,
 }: OpsKpiStripProps) {
-  const avgHealthPct = totalClients > 0 ? Math.round((healthyClients / totalClients) * 100) : 0
+  const { currency, rate } = useOpsCurrency()
 
   const kpis: OpsKpi[] = [
     {
@@ -58,10 +54,10 @@ export function OpsKpiStrip({
     },
     {
       label: 'Active MRR',
-      value: formatMoneyCompact(activeMrr ?? null),
+      value: formatMoneyCompact(activeMrr != null ? activeMrr * rate : null),
       icon: TrendingUp,
       color: '#10B981',
-      sub: 'Monthly recurring',
+      sub: `Monthly recurring (${currency})`,
     },
     {
       label: 'Bookings',
@@ -72,29 +68,15 @@ export function OpsKpiStrip({
     },
     {
       label: 'Total Revenue',
-      value: formatCurrency(totalLtv, 'USD'),
+      value: formatCurrency(totalLtv * rate, currency),
       icon: DollarSign,
       color: '#F59E0B',
-      sub: 'Lifetime collected',
-    },
-    {
-      label: 'Avg Health',
-      value: `${avgHealthPct}%`,
-      icon: HeartPulse,
-      color: '#06B6D4',
-      sub: 'Healthy rate',
-    },
-    {
-      label: 'Critical',
-      value: criticalClients.toLocaleString(),
-      icon: AlertTriangle,
-      color: criticalClients > 0 ? '#EF4444' : '#10B981',
-      sub: criticalClients > 0 ? 'Needs attention' : 'All clear',
+      sub: `Lifetime collected (${currency})`,
     },
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {kpis.map((kpi) => {
         const Icon = kpi.icon
         return (

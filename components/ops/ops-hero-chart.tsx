@@ -253,7 +253,7 @@ function MrrClientsChart({ data }: { data: OpsChartPoint[] }) {
         />
         <Area
           yAxisId="clients"
-          type="stepAfter"
+          type="monotone"
           dataKey="activeClients"
           name="Active Clients"
           stroke="#6366F1"
@@ -332,7 +332,7 @@ function ChurnChart({ data }: { data: OpsChartPoint[] }) {
         <Tooltip content={<ChartTooltip view="churn" />} />
         <Area
           yAxisId="clients"
-          type="stepAfter"
+          type="monotone"
           dataKey="activeClients"
           name="Active Clients"
           stroke="#6366F1"

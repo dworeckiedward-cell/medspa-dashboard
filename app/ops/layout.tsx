@@ -23,6 +23,7 @@ import { getAllClientOverviews } from '@/lib/ops/query'
 import { getOpsNotifications, countUnreadNotifications } from '@/lib/ops/notifications'
 import { OpsHeaderActions } from '@/components/ops/ops-header-actions'
 import { OpsTabNav } from '@/components/ops/ops-tab-nav'
+import { OpsCurrencyProvider, OpsCurrencyToggle } from '@/components/ops/ops-currency-toggle'
 import { ServifyLogo } from '@/components/branding/servify-logo'
 
 export const dynamic = 'force-dynamic'
@@ -97,6 +98,7 @@ export default async function OpsLayout({ children }: { children: React.ReactNod
                 {access.email ?? 'Operator'}
               </span>
               <div className="hidden sm:block h-4 w-px bg-[#1e1e2e]" />
+              <OpsCurrencyToggle />
               <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#6366f1]/15 text-[#818cf8] font-medium border border-[#6366f1]/20">
                 {access.grantedVia === 'dev_mode' ? 'Dev Mode' : 'Admin'}
               </span>
@@ -119,9 +121,11 @@ export default async function OpsLayout({ children }: { children: React.ReactNod
       </header>
 
       {/* ── Content ───────────────────────────────────────────────────────── */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-7">
-        {children}
-      </main>
+      <OpsCurrencyProvider>
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-7">
+          {children}
+        </main>
+      </OpsCurrencyProvider>
     </div>
   )
 }
