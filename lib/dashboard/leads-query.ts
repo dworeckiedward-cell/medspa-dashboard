@@ -4,6 +4,7 @@ import type { Contact, ContactStatus, CallLogEntry, CallSummary } from '@/lib/ty
 /**
  * Derives leads from call_logs where is_lead = true.
  * Groups by caller_phone to produce one Contact per unique phone number.
+ * Deduplicates: same phone = one lead (newest call wins).
  * Sorted by most recent call first.
  */
 export async function getLeadsFromCallLogs(clientId: string): Promise<Contact[]> {
@@ -12,33 +13,36 @@ export async function getLeadsFromCallLogs(clientId: string): Promise<Contact[]>
   const { data: rows, error } = await supabase
     .from('call_logs')
     .select(
-      'id, client_id, caller_name, caller_phone, is_booked, is_lead, lead_source, lead_status, disposition, intent, created_at, updated_at, human_followup_needed, human_followup_reason, semantic_title, ai_summary_json, call_summary, summary, ai_summary, transcript, recording_url, direction, duration_seconds, sentiment',
+      'id, client_id, caller_name, caller_phone, is_booked, is_lead, lead_source, lead_status, disposition, intent, created_at, updated_at, human_followup_needed, human_followup_reason, semantic_title, ai_summary_json, call_summary, summary, ai_summary, transcript, recording_url, direction, duration_seconds, sentiment, tags',
     )
     .eq('client_id', clientId)
     .eq('is_lead', true)
     .order('created_at', { ascending: false })
-    .limit(500)
+    .limit(1000)
 
   if (error || !rows) {
     console.error('[leads-query] Failed to fetch leads:', error?.message)
     return []
   }
 
-  // Group by phone number (or id if no phone)
+  // ── Deduplication ──────────────────────────────────────────────────────────
+  // Group by normalized phone number. If no phone, use caller_name as key.
+  // This ensures one lead per unique person, with all their calls grouped.
   type Row = (typeof rows)[number]
-  const byPhone = new Map<string, Row[]>()
+  const byKey = new Map<string, Row[]>()
+
   for (const row of rows) {
-    const key = row.caller_phone ?? row.id
-    const group = byPhone.get(key) ?? []
+    const key = normalizeDedupeKey(row.caller_phone, row.caller_name)
+    const group = byKey.get(key) ?? []
     group.push(row)
-    byPhone.set(key, group)
+    byKey.set(key, group)
   }
 
   const contacts: Contact[] = []
 
-  const entries = Array.from(byPhone.values())
+  const entries = Array.from(byKey.values())
   for (const group of entries) {
-    const latest = group[0] // already sorted desc
+    const latest = group[0] // already sorted desc by created_at
     const hasBooking = group.some((r: Row) => r.is_booked)
 
     // Derive status: prefer DB lead_status, fall back to heuristics
@@ -113,13 +117,16 @@ export async function getLeadsFromCallLogs(clientId: string): Promise<Contact[]>
       summary: buildCallSummaryForEntry(r, clientId),
     }))
 
+    // Use the best name available (prefer non-null, non-"?" names from any call)
+    const bestName = pickBestName(group)
+
     contacts.push({
       id: latest.id,
       tenantId: clientId,
-      fullName: latest.caller_name ?? latest.caller_phone ?? 'Unknown',
+      fullName: bestName,
       phone: latest.caller_phone ?? '',
       email: null,
-      tags: [],
+      tags: ((latest as Record<string, unknown>).tags as string[] | null) ?? [],
       source: latest.lead_source ?? 'phone',
       status,
       ownerType: 'ai',
@@ -136,7 +143,41 @@ export async function getLeadsFromCallLogs(clientId: string): Promise<Contact[]>
   return contacts
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Deduplication helpers ──────────────────────────────────────────────────
+
+/**
+ * Normalize phone for dedup: strip everything except digits, take last 10.
+ * Falls back to lowercase trimmed name if no phone.
+ */
+function normalizeDedupeKey(phone: string | null, name: string | null): string {
+  if (phone) {
+    const digits = phone.replace(/\D/g, '')
+    // Use last 10 digits (strips country code variations)
+    const normalized = digits.length >= 10 ? digits.slice(-10) : digits
+    if (normalized.length >= 7) return `phone:${normalized}`
+  }
+  // No usable phone — dedupe by name
+  const trimmed = (name ?? '').trim().toLowerCase()
+  if (trimmed && trimmed !== '?' && trimmed !== 'unknown') {
+    return `name:${trimmed}`
+  }
+  // Truly unknown — use random key (no dedup)
+  return `unknown:${Math.random()}`
+}
+
+/**
+ * Pick the best name from a group of calls.
+ * Prefers non-null, non-"?" names. Uses the most recent non-empty name.
+ */
+function pickBestName(group: Array<{ caller_name: string | null; caller_phone: string | null }>): string {
+  for (const row of group) {
+    const name = row.caller_name?.trim()
+    if (name && name !== '?' && name !== 'Unknown') return name
+  }
+  return group[0].caller_phone ?? 'Unknown'
+}
+
+// ── Summary helpers ────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown>
 
