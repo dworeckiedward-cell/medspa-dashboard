@@ -275,7 +275,7 @@ function OverviewTab({
       <KpiCards metrics={metrics} currency={currency} features={features} rangeDays={rangeDays} />
 
       {/* 2. Revenue Pipeline (2/3) + Recent Positive Calls (1/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 items-stretch">
         <div className="lg:col-span-2">
           <RoiChart
             data={metrics.chartSeries}

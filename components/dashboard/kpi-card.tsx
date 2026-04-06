@@ -49,14 +49,14 @@ export function KpiCard({ title, value, subtitle, icon: Icon, color, trend }: Kp
         }}
       />
 
-      <CardContent className="p-5 relative">
+      <CardContent className="p-3.5 sm:p-5 relative">
         <div className="flex items-start justify-between">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-medium text-[var(--brand-muted)] uppercase tracking-wider mb-2">
+            <p className="text-[10px] sm:text-[11px] font-medium text-[var(--brand-muted)] uppercase tracking-wider mb-1.5 sm:mb-2">
               {title}
             </p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-[26px] font-bold text-[var(--brand-text)] tabular-nums leading-none" style={{ letterSpacing: "-0.03em" }}>
+            <div className="flex items-baseline gap-1.5 sm:gap-2">
+              <p className="text-xl sm:text-[26px] font-bold text-[var(--brand-text)] tabular-nums leading-none" style={{ letterSpacing: "-0.03em" }}>
                 {value}
               </p>
               {trend != null && (
@@ -76,10 +76,10 @@ export function KpiCard({ title, value, subtitle, icon: Icon, color, trend }: Kp
             )}
           </div>
           <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl"
             style={{ background: `${color}22`, color }}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
         </div>
       </CardContent>
