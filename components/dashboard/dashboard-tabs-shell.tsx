@@ -30,8 +30,7 @@ function CallLogsSection({ clientId, tenantSlug }: {
 }) {
   const ctx = useDashboardData()
   const tabState = useTabState()
-  // Only show calls that have a recording — calls without recordings are noise
-  const allCalls = (ctx?.calls ?? []).filter((c) => !!c.recording_url)
+  const allCalls = ctx?.calls ?? []
   const activeTab = tabState?.activeTab ?? '/dashboard/call-logs'
 
   const callFilter: CallFilter = activeTab.includes('filter=inbound') ? 'inbound'
