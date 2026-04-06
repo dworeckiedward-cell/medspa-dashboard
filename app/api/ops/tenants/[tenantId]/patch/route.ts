@@ -62,14 +62,42 @@ export async function PATCH(
   }
 
   const supabase = createSupabaseServerClient()
-  const { error } = await supabase
-    .from('tenants')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', tenantId)
 
-  if (error) {
-    console.error('[ops] tenant patch error:', error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  // Split updates: ops-specific fields go to `clients`, rest to `tenants`
+  const clientOnlyFields = ['ops_notes', 'monthly_ad_spend_cents', 'calendly_url'] as const
+  const clientUpdates: Record<string, unknown> = {}
+  const tenantUpdates: Record<string, unknown> = {}
+
+  for (const [k, v] of Object.entries(updates)) {
+    if ((clientOnlyFields as readonly string[]).includes(k)) {
+      clientUpdates[k] = v
+    } else {
+      tenantUpdates[k] = v
+    }
+  }
+
+  // Write to clients table if needed
+  if (Object.keys(clientUpdates).length > 0) {
+    const { error: clientErr } = await supabase
+      .from('clients')
+      .update({ ...clientUpdates, updated_at: new Date().toISOString() })
+      .eq('id', tenantId)
+    if (clientErr) {
+      console.error('[ops] client patch error:', clientErr.message)
+      return NextResponse.json({ error: clientErr.message }, { status: 500 })
+    }
+  }
+
+  // Write to tenants table if needed
+  if (Object.keys(tenantUpdates).length > 0) {
+    const { error: tenantErr } = await supabase
+      .from('tenants')
+      .update({ ...tenantUpdates, updated_at: new Date().toISOString() })
+      .eq('id', tenantId)
+    if (tenantErr) {
+      console.error('[ops] tenant patch error:', tenantErr.message)
+      return NextResponse.json({ error: tenantErr.message }, { status: 500 })
+    }
   }
 
   await logOperatorAction({
