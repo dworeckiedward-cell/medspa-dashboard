@@ -106,11 +106,11 @@ interface LegendPayloadItem {
 function CustomLegend({ payload }: { payload?: LegendPayloadItem[] }) {
   if (!payload?.length) return null
   return (
-    <div className="flex items-center justify-center gap-5 pt-3">
+    <div className="flex items-center justify-center gap-3 sm:gap-5 pt-2 sm:pt-3 px-2">
       {payload.map((entry) => (
-        <div key={entry.value} className="flex items-center gap-1.5">
-          <div className="h-2 w-2 rounded-full shrink-0" style={{ background: entry.color }} />
-          <span className="text-xs text-gray-400">{entry.value}</span>
+        <div key={entry.value} className="flex items-center gap-1">
+          <div className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full shrink-0" style={{ background: entry.color }} />
+          <span className="text-[10px] sm:text-xs text-[var(--brand-muted)]">{entry.value}</span>
         </div>
       ))}
     </div>
@@ -179,16 +179,16 @@ export function RoiChart({ data, currency = 'USD', rangeDays = 30, rangeSwitch, 
 
   return (
     <Card className="h-full">
-      <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-base">{showBookedValue ? 'Revenue Pipeline' : 'AI Revenue Pipeline'}</CardTitle>
-          <div className="flex items-center gap-2 flex-wrap">
+      <CardHeader className="pb-2 p-3 sm:p-6 sm:pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+          <CardTitle className="text-sm sm:text-base">{showBookedValue ? 'Revenue Pipeline' : 'AI Revenue Pipeline'}</CardTitle>
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {rangeSwitch}
             {showBookedValue && <SegmentedToggle options={METRIC_OPTIONS} value={metric} onChange={setMetric} />}
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0 sm:p-6 sm:pt-0">
         {!hasData ? (
           <div className="flex h-48 sm:h-64 flex-col items-center justify-center gap-3 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand-border)]/50">
@@ -202,7 +202,7 @@ export function RoiChart({ data, currency = 'USD', rangeDays = 30, rangeSwitch, 
             </div>
           </div>
         ) : (
-          <div className="py-1 sm:py-2 -mx-2 sm:mx-0 h-[220px] sm:h-[310px]"><ResponsiveContainer width="100%" height="100%">
+          <div className="h-[200px] sm:h-[310px]"><ResponsiveContainer width="100%" height="100%">
             {/*
               Render order matters in recharts — last element is drawn on top.
               Outbound and Inbound lines render first (background),
