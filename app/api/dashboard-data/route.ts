@@ -26,7 +26,7 @@ export async function GET() {
         .select('*')
         .eq('client_id', tenant.id)
         .order('created_at', { ascending: false })
-        .limit(500),
+        .limit(1000),
       supabase
         .from('bookings')
         .select(
