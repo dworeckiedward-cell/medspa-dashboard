@@ -201,7 +201,7 @@ export function KpiCards({ metrics, currency = 'USD', priorMetrics, features, ra
     : cards.filter((c) => c.title !== 'Potential Revenue')
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
       {visibleCards.map((card) => (
         <KpiCard key={card.title} {...card} />
       ))}
@@ -212,7 +212,7 @@ export function KpiCards({ metrics, currency = 'USD', priorMetrics, features, ra
 /** Skeleton placeholder matching the 4-card KPI grid layout. */
 export function KpiCardsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 sm:gap-4 xl:grid-cols-4">
       {Array.from({ length: 4 }).map((_, i) => (
         <Card key={i}>
           <CardContent className="p-5">

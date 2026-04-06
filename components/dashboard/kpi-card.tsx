@@ -2,12 +2,7 @@
 
 /**
  * KpiCard — reusable single-metric card.
- *
- * Structure:
- *   Title (small caps)
- *   Value (large)
- *   Subtitle (small, muted)
- *   Optional trend chip: ▲/▼ with % vs prior period
+ * Compact 2-col grid on mobile, full size on desktop.
  */
 
 import { ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
@@ -20,7 +15,6 @@ export interface KpiCardProps {
   subtitle?: string
   icon: React.ElementType
   color: string
-  /** Trend percentage vs prior period — positive = up, negative = down */
   trend?: number | null
 }
 
@@ -41,45 +35,40 @@ export function KpiCard({ title, value, subtitle, icon: Icon, color, trend }: Kp
 
   return (
     <Card className="relative overflow-hidden">
-      {/* Subtle gradient glow */}
       <div
         className="absolute inset-0 opacity-[0.04]"
-        style={{
-          background: `radial-gradient(ellipse at top left, ${color}, transparent 70%)`,
-        }}
+        style={{ background: `radial-gradient(ellipse at top left, ${color}, transparent 70%)` }}
       />
 
-      <CardContent className="p-3.5 sm:p-5 relative">
-        <div className="flex items-start justify-between">
+      <CardContent className="p-3 sm:p-5 relative">
+        <div className="flex items-start justify-between gap-1">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] sm:text-[11px] font-medium text-[var(--brand-muted)] uppercase tracking-wider mb-1.5 sm:mb-2">
+            <p className="text-[9px] sm:text-[11px] font-medium text-[var(--brand-muted)] uppercase tracking-wider mb-1 sm:mb-2 truncate">
               {title}
             </p>
-            <div className="flex items-baseline gap-1.5 sm:gap-2">
-              <p className="text-xl sm:text-[26px] font-bold text-[var(--brand-text)] tabular-nums leading-none" style={{ letterSpacing: "-0.03em" }}>
-                {value}
-              </p>
-              {trend != null && (
-                <span
-                  className={cn(
-                    'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
-                    trendColor,
-                  )}
-                >
-                  <TrendIcon className="h-2.5 w-2.5" />
-                  {Math.abs(Math.round(trend))}%
-                </span>
-              )}
-            </div>
+            <p className="text-lg sm:text-[26px] font-bold text-[var(--brand-text)] tabular-nums leading-none truncate" style={{ letterSpacing: "-0.03em" }}>
+              {value}
+            </p>
             {subtitle && (
-              <p className="text-xs text-[var(--brand-muted)] mt-1.5">{subtitle}</p>
+              <p className="text-[10px] sm:text-xs text-[var(--brand-muted)] mt-1 sm:mt-1.5 line-clamp-2 leading-tight">{subtitle}</p>
+            )}
+            {trend != null && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium tabular-nums mt-1.5',
+                  trendColor,
+                )}
+              >
+                <TrendIcon className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+                {Math.abs(Math.round(trend))}%
+              </span>
             )}
           </div>
           <div
-            className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl"
+            className="flex h-7 w-7 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl"
             style={{ background: `${color}22`, color }}
           >
-            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+            <Icon className="h-3.5 w-3.5 sm:h-5 sm:w-5" />
           </div>
         </div>
       </CardContent>

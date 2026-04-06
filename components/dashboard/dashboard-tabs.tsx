@@ -268,7 +268,7 @@ function OverviewTab({
   const features = getTenantFeatures(tenant)
 
   return (
-    <div className="space-y-4 p-4 md:space-y-6 md:p-6 animate-fade-in">
+    <div className="space-y-3 p-3 sm:space-y-4 sm:p-4 md:space-y-6 md:p-6 animate-fade-in">
       {/* ── Above the fold: ROI-first ───────────────────────────────── */}
 
       {/* 1. KPI cards */}
