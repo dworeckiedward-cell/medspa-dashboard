@@ -91,7 +91,10 @@ export default async function OpsOverviewPage() {
   const activeClientIds = new Set(overviews.filter((o) => o.client.is_active).map((o) => o.client.id))
   const totalLtv = unitEconomics
     .filter((u) => activeClientIds.has(u.clientId))
-    .reduce((sum, u) => sum + u.totalCollectedLtv, 0)
+    .reduce((sum, u) => {
+      const ltv = u.ltvMode === 'manual' && u.manualLtvUsd != null ? u.manualLtvUsd : u.totalCollectedLtv
+      return sum + ltv
+    }, 0)
 
   // ── Chart series ────────────────────────────────────────────────────────
   const chartBaseOpts = {
