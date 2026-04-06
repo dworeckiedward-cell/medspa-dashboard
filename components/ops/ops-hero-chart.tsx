@@ -169,7 +169,7 @@ export function OpsHeroChart({ seriesByRange, isEstimated }: OpsHeroChartProps) 
         </div>
 
         {/* ── Chart body ────────────────────────────────────────────── */}
-        <div className="h-56 sm:h-64">
+        <div className="h-64 sm:h-72">
           {view === 'mrr-clients' && <MrrClientsChart data={data} />}
           {view === 'roi' && (
             hasCac ? (
@@ -185,20 +185,20 @@ export function OpsHeroChart({ seriesByRange, isEstimated }: OpsHeroChartProps) 
         <div className="mt-3 pt-3 border-t border-[var(--brand-border)]/40 flex flex-wrap items-center gap-4">
           {view === 'mrr-clients' && (
             <>
-              <LegendDot color="#10B981" label="MRR" />
-              <LegendDot color="#6366F1" label="Active Clients" />
+              <LegendDot color="#34d399" label="MRR" />
+              <LegendDot color="#818cf8" label="Active Clients" />
             </>
           )}
           {view === 'roi' && hasCac && (
             <>
-              <LegendDot color="#10B981" label="MRR" />
-              <LegendDot color="#F59E0B" label="Avg CAC" />
+              <LegendDot color="#34d399" label="MRR" />
+              <LegendDot color="#fbbf24" label="Avg CAC" />
             </>
           )}
           {view === 'churn' && (
             <>
-              <LegendDot color="#6366F1" label="Active Clients" />
-              <LegendDot color="#EF4444" label="Churn (estimated)" />
+              <LegendDot color="#818cf8" label="Active Clients" />
+              <LegendDot color="#f87171" label="Churn (estimated)" />
             </>
           )}
         </div>
@@ -212,18 +212,18 @@ export function OpsHeroChart({ seriesByRange, isEstimated }: OpsHeroChartProps) 
 function MrrClientsChart({ data }: { data: OpsChartPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: -12 }}>
         <defs>
           <linearGradient id="mrrGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#10B981" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+            <stop offset="0%" stopColor="#34d399" stopOpacity={0.2} />
+            <stop offset="100%" stopColor="#34d399" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="clientsGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366F1" stopOpacity={0.15} />
-            <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+            <stop offset="0%" stopColor="#818cf8" stopOpacity={0.15} />
+            <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-border)" strokeOpacity={0.6} vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-border)" strokeOpacity={0.3} vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--brand-muted)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
         <YAxis
           yAxisId="mrr"
@@ -245,22 +245,28 @@ function MrrClientsChart({ data }: { data: OpsChartPoint[] }) {
           type="monotone"
           dataKey="mrr"
           name="MRR"
-          stroke="#10B981"
-          strokeWidth={2}
+          stroke="#34d399"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           fill="url(#mrrGrad)"
+          fillOpacity={0.15}
           dot={false}
-          activeDot={{ r: 3 }}
+          activeDot={{ r: 4, strokeWidth: 2, fill: 'var(--brand-surface)' }}
         />
         <Area
           yAxisId="clients"
           type="monotone"
           dataKey="activeClients"
           name="Active Clients"
-          stroke="#6366F1"
-          strokeWidth={2}
+          stroke="#818cf8"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           fill="url(#clientsGrad)"
+          fillOpacity={0.15}
           dot={false}
-          activeDot={{ r: 3 }}
+          activeDot={{ r: 4, strokeWidth: 2, fill: 'var(--brand-surface)' }}
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -270,8 +276,8 @@ function MrrClientsChart({ data }: { data: OpsChartPoint[] }) {
 function RoiChart({ data }: { data: OpsChartPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-border)" strokeOpacity={0.6} vertical={false} />
+      <LineChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: -12 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-border)" strokeOpacity={0.3} vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--brand-muted)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
         <YAxis
           tick={{ fontSize: 10, fill: 'var(--brand-muted)' }}
@@ -284,20 +290,23 @@ function RoiChart({ data }: { data: OpsChartPoint[] }) {
           type="monotone"
           dataKey="mrr"
           name="MRR"
-          stroke="#10B981"
-          strokeWidth={2}
+          stroke="#34d399"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           dot={false}
-          activeDot={{ r: 3 }}
+          activeDot={{ r: 4, strokeWidth: 2, fill: 'var(--brand-surface)' }}
         />
         <Line
           type="monotone"
           dataKey="avgCac"
           name="Avg CAC"
-          stroke="#F59E0B"
+          stroke="#fbbf24"
           strokeWidth={2}
+          strokeLinecap="round"
           dot={false}
-          activeDot={{ r: 3 }}
-          strokeDasharray="4 4"
+          activeDot={{ r: 4, strokeWidth: 2, fill: 'var(--brand-surface)' }}
+          strokeDasharray="6 3"
         />
       </LineChart>
     </ResponsiveContainer>
@@ -307,14 +316,14 @@ function RoiChart({ data }: { data: OpsChartPoint[] }) {
 function ChurnChart({ data }: { data: OpsChartPoint[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: -12 }}>
         <defs>
           <linearGradient id="clientsChurnGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#6366F1" stopOpacity={0.15} />
-            <stop offset="100%" stopColor="#6366F1" stopOpacity={0} />
+            <stop offset="0%" stopColor="#818cf8" stopOpacity={0.15} />
+            <stop offset="100%" stopColor="#818cf8" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-border)" strokeOpacity={0.6} vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--brand-border)" strokeOpacity={0.3} vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--brand-muted)' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
         <YAxis
           yAxisId="clients"
@@ -335,22 +344,26 @@ function ChurnChart({ data }: { data: OpsChartPoint[] }) {
           type="monotone"
           dataKey="activeClients"
           name="Active Clients"
-          stroke="#6366F1"
-          strokeWidth={2}
+          stroke="#818cf8"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           fill="url(#clientsChurnGrad)"
+          fillOpacity={0.15}
           dot={false}
-          activeDot={{ r: 3 }}
+          activeDot={{ r: 4, strokeWidth: 2, fill: 'var(--brand-surface)' }}
         />
         <Line
           yAxisId="churn"
           type="monotone"
           dataKey="churnCount"
           name="Churn (est.)"
-          stroke="#EF4444"
+          stroke="#f87171"
           strokeWidth={2}
+          strokeLinecap="round"
           dot={false}
-          activeDot={{ r: 3 }}
-          strokeDasharray="4 4"
+          activeDot={{ r: 4, strokeWidth: 2, fill: 'var(--brand-surface)' }}
+          strokeDasharray="6 3"
         />
       </AreaChart>
     </ResponsiveContainer>

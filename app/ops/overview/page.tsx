@@ -124,8 +124,6 @@ export default async function OpsOverviewPage() {
       {/* 1. KPI strip */}
       <OpsKpiStrip
         totalClients={activeClients}
-        healthyClients={healthyClients}
-        criticalClients={criticalClients}
         totalCalls={totalCalls}
         totalBookings={totalBookings}
         totalLtv={totalLtv}

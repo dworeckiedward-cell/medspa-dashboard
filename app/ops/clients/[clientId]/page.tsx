@@ -26,6 +26,7 @@ import { resolveOperatorAccess } from '@/lib/ops/resolve-operator-access'
 import { logOperatorAction } from '@/lib/ops/audit'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { computeClientHealth } from '@/lib/ops/health-score'
+import { OpsClientNotes } from '@/components/ops/ops-client-notes'
 import { getClientCallStats } from '@/lib/ops/query'
 import { getWorkflowErrors } from '@/lib/ops/notifications'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -195,6 +196,9 @@ export default async function ClientDetailsPage({
                   : '—'}
               />
             </div>
+
+            {/* Internal notes */}
+            <OpsClientNotes clientId={clientId} initialNotes={(client as unknown as Record<string, unknown>).ops_notes as string | null} />
 
             {/* Config snapshot */}
             <Card>

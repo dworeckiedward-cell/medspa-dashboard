@@ -134,17 +134,17 @@ export function computeOpsOverviewMetrics(opts: {
           ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
           : d.toLocaleDateString('en-US', { month: 'short' })
 
-    // Growth factor: simulate gradual ramp-up to current values
-    const progress = points > 1 ? (points - i) / points : 1
-    // Slight random variation for visual realism (seeded by index for stability)
-    const jitter = 0.92 + (((i * 7 + 3) % 10) / 50) // deterministic 0.92–1.10
+    // S-curve growth (cosine easing) — smooth ramp instead of linear + jitter
+    const progress = points > 1
+      ? (1 - Math.cos((Math.PI * (points - i)) / points)) / 2
+      : 1
 
     series.push({
       label,
-      mrr: Math.round(activeMrr * progress * (i === 0 ? 1 : jitter)),
-      activeClients: Math.round(totalClients * progress * (i === 0 ? 1 : jitter)),
-      avgCac: avgCac !== null ? Math.round(avgCac * (i === 0 ? 1 : jitter)) : null,
-      churnCount: i === 0 ? churnCount : Math.max(0, Math.round(churnCount * jitter * 0.8)),
+      mrr: Math.round(activeMrr * progress),
+      activeClients: Math.max(1, Math.round(totalClients * progress)),
+      avgCac: avgCac !== null ? Math.round(avgCac * (0.8 + progress * 0.2)) : null,
+      churnCount: i === 0 ? churnCount : Math.max(0, Math.round(churnCount * progress * 0.6)),
     })
   }
 

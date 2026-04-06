@@ -9,11 +9,13 @@ import {
   AlertTriangle,
   DollarSign,
   Headphones,
+  Target,
 } from 'lucide-react'
 
 const TABS = [
   { href: '/ops/overview', label: 'Overview', icon: LayoutDashboard },
   { href: '/ops/clients', label: 'Clients', icon: Users },
+  { href: '/ops/fb-ads', label: 'FB Ads', icon: Target },
   { href: '/ops/alerts', label: 'Alerts', icon: AlertTriangle },
   { href: '/ops/financials', label: 'Financials', icon: DollarSign },
   { href: '/ops/support', label: 'Support', icon: Headphones },

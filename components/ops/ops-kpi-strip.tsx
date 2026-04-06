@@ -26,8 +26,6 @@ interface OpsKpi {
 
 export interface OpsKpiStripProps {
   totalClients: number
-  healthyClients: number
-  criticalClients: number
   totalCalls: number
   totalBookings: number
   totalLtv: number
@@ -37,7 +35,6 @@ export interface OpsKpiStripProps {
 
 export function OpsKpiStrip({
   totalClients,
-  healthyClients,
   totalBookings,
   totalLtv,
   activeMrr,
@@ -50,7 +47,7 @@ export function OpsKpiStrip({
       value: totalClients.toLocaleString(),
       icon: Building2,
       color: '#2563EB',
-      sub: `${healthyClients} healthy`,
+      sub: `${totalClients} active`,
     },
     {
       label: 'Active MRR',

@@ -22,6 +22,9 @@ const PatchSchema = z.object({
   timezone: z.string().max(100).optional(),
   client_status: z.enum(['onboarding', 'live', 'watch', 'canceled']).nullable().optional(),
   website_url: z.string().max(500).nullable().optional(),
+  ops_notes: z.string().max(5000).nullable().optional(),
+  monthly_ad_spend_cents: z.number().int().min(0).nullable().optional(),
+  calendly_url: z.string().max(500).nullable().optional(),
 })
 
 export async function PATCH(
