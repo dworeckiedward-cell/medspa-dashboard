@@ -224,7 +224,7 @@ export function OpsClientDetailPopup({
             />
             <EditableField
               label="LTV"
-              value={economics?.totalCollectedLtv}
+              value={economics?.ltvMode === 'manual' && economics?.manualLtvUsd != null ? economics.manualLtvUsd : economics?.totalCollectedLtv}
               format="money"
               field="ltvUsd"
               apiPath={`/api/ops/unit-economics/${client.id}`}

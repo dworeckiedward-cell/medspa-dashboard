@@ -52,7 +52,12 @@ export async function GET(
 
     // Build unit economics
     const cacRow = await getClientCacRow(clientId)
-    const unitEcon = buildClientUnitEconomics(client, cacRow)
+    const { data: fpRow } = await supabase
+      .from('client_financial_profiles')
+      .select('retainer_amount')
+      .eq('client_id', clientId)
+      .maybeSingle()
+    const unitEcon = buildClientUnitEconomics(client, cacRow, null, fpRow?.retainer_amount)
 
     // Build commercial detail
     const detail = await getClientCommercialDetail(client, unitEcon)

@@ -130,14 +130,21 @@ export async function getAllCacRows(): Promise<Map<string, ClientUnitEconomicsRo
  * Merges client data + unit economics rows + computed LTV.
  */
 export async function getAllClientUnitEconomics(): Promise<ClientUnitEconomics[]> {
-  const [clients, ueRows] = await Promise.all([
+  const supabase = createSupabaseServerClient()
+  const [clients, ueRows, { data: profiles }] = await Promise.all([
     listAllClients(),
     getAllUnitEconomicsRows(),
+    supabase.from('client_financial_profiles').select('client_id, retainer_amount'),
   ])
+
+  const retainerMap = new Map<string, number>()
+  ;(profiles ?? []).forEach((p: { client_id: string; retainer_amount: number | null }) => {
+    if (p.retainer_amount != null) retainerMap.set(p.client_id, p.retainer_amount)
+  })
 
   return clients.map((client) => {
     const ueRow = ueRows.get(client.id) ?? null
     const legacyRow = ueRow ? toLegacyRow(ueRow) : null
-    return buildClientUnitEconomics(client, legacyRow, ueRow)
+    return buildClientUnitEconomics(client, legacyRow, ueRow, retainerMap.get(client.id))
   })
 }

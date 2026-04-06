@@ -15,9 +15,8 @@ import type {
 } from './types'
 import type { Client } from '@/types/database'
 
-// ── Mock billing constants ──────────────────────────────────────────────────
-const MOCK_MRR_CENTS = 29900 // $299/month
-const MOCK_MRR = MOCK_MRR_CENTS / 100
+// ── Fallback MRR (only used when no financial profile exists) ───────────────
+const FALLBACK_MRR = 0
 
 // ── LTV computation ─────────────────────────────────────────────────────────
 
@@ -30,7 +29,12 @@ interface LtvResult {
   lastPaymentAt: string | null
 }
 
-export function computeLtv(client: Client): LtvResult {
+/**
+ * Compute LTV from client data.
+ * Uses retainer_amount from financial profile if available (passed via client record),
+ * otherwise falls back to 0.
+ */
+export function computeLtv(client: Client, retainerAmount?: number | null): LtvResult {
   const createdAt = new Date(client.created_at)
   const now = new Date()
   const monthsActive = Math.max(
@@ -39,10 +43,13 @@ export function computeLtv(client: Client): LtvResult {
       (now.getMonth() - createdAt.getMonth()),
   )
 
+  // Use real retainer from financial profile, fallback to 0
+  const mrr = retainerAmount ?? FALLBACK_MRR
+
   if (!client.is_active) {
     return {
-      totalCollectedLtv: MOCK_MRR * Math.max(1, monthsActive - 1),
-      ltvConfidence: 'derived',
+      totalCollectedLtv: mrr * Math.max(1, monthsActive - 1),
+      ltvConfidence: mrr > 0 ? 'derived' : 'none',
       activeMrr: null,
       collectedPaymentsCount: Math.max(1, monthsActive - 1),
       firstPaymentAt: client.created_at,
@@ -51,9 +58,9 @@ export function computeLtv(client: Client): LtvResult {
   }
 
   return {
-    totalCollectedLtv: MOCK_MRR * monthsActive,
-    ltvConfidence: 'derived',
-    activeMrr: MOCK_MRR,
+    totalCollectedLtv: mrr * monthsActive,
+    ltvConfidence: mrr > 0 ? 'derived' : 'none',
+    activeMrr: mrr > 0 ? mrr : null,
     collectedPaymentsCount: monthsActive,
     firstPaymentAt: client.created_at,
     lastPaymentAt: now.toISOString(),
@@ -94,8 +101,9 @@ export function buildClientUnitEconomics(
   client: Client,
   cacRow: ClientUnitEconomicsRow | null,
   ueRow?: UnitEconomicsRow | null,
+  retainerAmount?: number | null,
 ): ClientUnitEconomics {
-  const ltv = computeLtv(client)
+  const ltv = computeLtv(client, retainerAmount)
 
   // Read CAC from production row if available, else from legacy row
   const cacAmount = ueRow?.cac_usd ?? cacRow?.cac_amount ?? null

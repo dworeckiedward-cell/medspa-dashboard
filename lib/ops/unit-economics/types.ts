@@ -41,12 +41,13 @@ export const CAC_SOURCE_COLORS: Record<CacSource, string> = {
 // ── LTV confidence ──────────────────────────────────────────────────────────
 
 /** How confident we are in the LTV number. */
-export type LtvConfidence = 'exact' | 'derived' | 'estimated'
+export type LtvConfidence = 'exact' | 'derived' | 'estimated' | 'none'
 
 export const LTV_CONFIDENCE_LABELS: Record<LtvConfidence, string> = {
   exact: 'Exact',
   derived: 'Derived',
   estimated: 'Estimated',
+  none: 'No data',
 }
 
 // ── Payback status ──────────────────────────────────────────────────────────

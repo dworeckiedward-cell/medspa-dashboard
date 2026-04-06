@@ -512,7 +512,7 @@ function ClientRow({
 
       {/* LTV */}
       <InlineMoneyCell
-        value={economics?.totalCollectedLtv}
+        value={economics?.ltvMode === 'manual' && economics?.manualLtvUsd != null ? economics.manualLtvUsd : economics?.totalCollectedLtv}
         clientId={client.id}
         field="ltvUsd"
         apiPath={`/api/ops/unit-economics/${client.id}`}
