@@ -47,13 +47,13 @@ interface CustomTooltipProps {
 function CustomTooltip({ active, payload, label, currency }: CustomTooltipProps) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-lg border border-white/10 bg-gray-900/90 backdrop-blur-sm p-3 shadow-xl">
+    <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] backdrop-blur-sm p-3 shadow-xl">
       <p className="text-xs font-semibold text-gray-400 mb-2">{label}</p>
       {payload.map((item) => (
         <div key={item.name} className="flex items-center gap-2 text-xs py-0.5">
           <div className="h-2 w-2 rounded-full shrink-0" style={{ background: item.color }} />
           <span className="text-gray-400">{item.name}:</span>
-          <span className="font-semibold text-white">
+          <span className="font-semibold text-[var(--brand-text)]">
             {item.dataKey === 'inbound' || item.dataKey === 'outbound'
               ? `${item.value} call${item.value === 1 ? '' : 's'}`
               : formatCurrency(item.value, currency)}
@@ -202,13 +202,13 @@ export function RoiChart({ data, currency = 'USD', rangeDays = 30, rangeSwitch, 
             </div>
           </div>
         ) : (
-          <div className="py-2 px-1 h-[260px] sm:h-[310px]"><ResponsiveContainer width="100%" height="100%">
+          <div className="py-1 sm:py-2 -mx-2 sm:mx-0 h-[220px] sm:h-[310px]"><ResponsiveContainer width="100%" height="100%">
             {/*
               Render order matters in recharts — last element is drawn on top.
               Outbound and Inbound lines render first (background),
               Revenue Area renders last so it stays visually on top.
             */}
-            <ComposedChart data={filteredData} margin={{ top: 8, right: 36, left: 0, bottom: 0 }}>
+            <ComposedChart data={filteredData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradPotential" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#818cf8" stopOpacity={0.15} />
@@ -230,12 +230,13 @@ export function RoiChart({ data, currency = 'USD', rangeDays = 30, rangeSwitch, 
 
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="rgba(255,255,255,0.06)"
+                stroke="var(--brand-border)"
+                strokeOpacity={0.4}
                 vertical={false}
               />
               <XAxis
                 dataKey="date"
-                tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+                tick={{ fill: 'var(--brand-muted)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 interval="preserveStartEnd"
@@ -245,7 +246,7 @@ export function RoiChart({ data, currency = 'USD', rangeDays = 30, rangeSwitch, 
               <YAxis
                 yAxisId="revenue"
                 orientation="left"
-                tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+                tick={{ fill: 'var(--brand-muted)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => {
@@ -259,7 +260,7 @@ export function RoiChart({ data, currency = 'USD', rangeDays = 30, rangeSwitch, 
               <YAxis
                 yAxisId="calls"
                 orientation="right"
-                tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 12 }}
+                tick={{ fill: 'var(--brand-muted)', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
@@ -268,7 +269,7 @@ export function RoiChart({ data, currency = 'USD', rangeDays = 30, rangeSwitch, 
                   angle: 90,
                   position: 'insideRight',
                   offset: 10,
-                  style: { fill: 'rgba(255,255,255,0.25)', fontSize: 10 },
+                  style: { fill: 'var(--brand-muted)', fontSize: 10 },
                 }}
                 width={32}
               />
