@@ -122,10 +122,19 @@ export async function getDashboardMetrics(
 
   // ── Compute metrics from meaningful calls only ─────────────────────────────
   const bookingsList = (bookings ?? []) as BookingRow[]
-  const appointmentsBooked = bookingsList.length
-  const potentialRevenue = bookingsList
-    .filter((b) => b.payment_status === 'paid')
-    .reduce((sum, b) => sum + (b.amount_cents ?? 0) / 100, 0)
+
+  // Fallback: when no bookings table entries, derive from call_logs.is_booked
+  const callLogBookings = meaningful.filter((c) => c.is_booked)
+  const hasRealBookings = bookingsList.length > 0
+
+  const appointmentsBooked = hasRealBookings
+    ? bookingsList.length
+    : callLogBookings.length
+  const potentialRevenue = hasRealBookings
+    ? bookingsList
+        .filter((b) => b.payment_status === 'paid')
+        .reduce((sum, b) => sum + (b.amount_cents ?? 0) / 100, 0)
+    : callLogBookings.reduce((sum, c) => sum + (c.booked_value ?? 0), 0)
   // Pipeline revenue: $150 per positive-sentiment call, else sum potential_revenue
   const positiveCount = meaningful.filter((c) => c.sentiment === 'positive').length
   const pipelineRevenue = positiveCount > 0
