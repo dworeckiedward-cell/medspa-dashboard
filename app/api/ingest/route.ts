@@ -35,6 +35,7 @@ const ALLOWED_TYPES = [
   'lead_created',
   'sms_sent',
   'call_started',
+  'call_initiated',
   'call_ended',
   'appointment_booked',
   'payment_confirmed',
@@ -145,6 +146,7 @@ export async function POST(req: NextRequest) {
         break
       }
 
+      case 'call_initiated': // alias for call_started (from n8n automation)
       case 'call_started': {
         const callId =
           typeof meta.call_id === 'string' ? meta.call_id : `call-${Date.now()}`
