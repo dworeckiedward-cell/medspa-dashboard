@@ -132,12 +132,36 @@ export function DashboardTabsShell({ overviewContent, tenant }: DashboardTabsShe
     case '/dashboard/appointments': {
       if (!getTenantFeatures(tenant).showAppointments) return <>{overviewContent}</>
       const bookings = ctx?.bookings ?? []
+      const calendarId = (tenant as unknown as Record<string, unknown>).google_calendar_id as string | null
       return (
-        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 animate-fade-in">
-          <AppointmentsTable
-            bookings={bookings as BookingRow[]}
-            tenantSlug={tenant.slug}
-          />
+        <div className="p-3 sm:p-6 space-y-4 sm:space-y-5 animate-fade-in">
+          {/* Google Calendar embed */}
+          <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[var(--brand-border)]">
+              <h2 className="text-sm font-semibold text-[var(--brand-text)]">Calendar</h2>
+            </div>
+            <div className="w-full" style={{ height: 'min(70vh, 600px)' }}>
+              <iframe
+                src={calendarId
+                  ? `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendarId)}&ctz=America/Edmonton&mode=WEEK&showTitle=0&showNav=1&showCalendars=0&showTabs=0`
+                  : 'https://calendar.google.com/calendar/embed?src=clientcare@liveyounger.ca&ctz=America/Edmonton&mode=WEEK&showTitle=0&showNav=1&showCalendars=0&showTabs=0'
+                }
+                width="100%"
+                height="100%"
+                frameBorder="0"
+                scrolling="no"
+                className="bg-white dark:bg-gray-900"
+              />
+            </div>
+          </div>
+
+          {/* Bookings table (from DB) */}
+          {bookings.length > 0 && (
+            <AppointmentsTable
+              bookings={bookings as BookingRow[]}
+              tenantSlug={tenant.slug}
+            />
+          )}
         </div>
       )
     }
