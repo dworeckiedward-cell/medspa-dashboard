@@ -10,6 +10,7 @@ import { FollowUpQueue } from './follow-up-queue'
 import { AppointmentsTable } from '@/app/dashboard/appointments/appointments-table'
 import { AppointmentsCalendar } from './appointments-calendar'
 import { SupportPageClient } from '@/components/support/support-page-client'
+import { ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Client } from '@/types/database'
 import type { BookingRow } from '@/lib/dashboard/dashboard-cache'
@@ -133,8 +134,36 @@ export function DashboardTabsShell({ overviewContent, tenant }: DashboardTabsShe
     case '/dashboard/appointments': {
       if (!getTenantFeatures(tenant).showAppointments) return <>{overviewContent}</>
       const bookedCalls = (ctx?.calls ?? []).filter((c) => c.is_booked).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+      const calendarEmail = 'clientcare@liveyounger.ca'
       return (
-        <div className="p-3 sm:p-6 animate-fade-in">
+        <div className="p-3 sm:p-6 space-y-4 animate-fade-in">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <h1 className="text-lg sm:text-xl font-semibold text-[var(--brand-text)]">Appointments</h1>
+              <p className="text-[11px] sm:text-xs text-[var(--brand-muted)] mt-0.5">
+                {bookedCalls.length} booked by AI · synced with Google Calendar
+              </p>
+            </div>
+            <a href="https://calendar.google.com/calendar/u/4/r/week" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--brand-muted)] hover:text-[var(--brand-text)] transition-colors">
+              <ExternalLink className="h-3 w-3" />
+              <span className="hidden sm:inline">Open in Google Calendar</span>
+            </a>
+          </div>
+
+          {/* Google Calendar embed — public calendar */}
+          <div className="rounded-xl border border-[var(--brand-border)] bg-white overflow-hidden">
+            <iframe
+              src={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendarEmail)}&ctz=America/Edmonton&mode=WEEK&showTitle=0&showNav=1&showCalendars=0&showTabs=1&showPrint=0&showDate=1`}
+              width="100%"
+              style={{ height: 'min(70vh, 650px)', minHeight: '400px' }}
+              frameBorder="0"
+              scrolling="no"
+            />
+          </div>
+
+          {/* AI-booked appointments list */}
           <AppointmentsCalendar
             bookedCalls={bookedCalls}
             googleCalendarUrl="https://calendar.google.com/calendar/u/4/r/week"
