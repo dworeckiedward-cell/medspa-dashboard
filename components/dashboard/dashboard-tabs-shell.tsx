@@ -163,11 +163,7 @@ export function DashboardTabsShell({ overviewContent, tenant }: DashboardTabsShe
             />
           </div>
 
-          {/* AI-booked appointments list */}
-          <AppointmentsCalendar
-            bookedCalls={bookedCalls}
-            googleCalendarUrl="https://calendar.google.com/calendar/u/4/r/week"
-          />
+          {/* AI-booked appointments list is not needed — GCal embed shows everything */}
         </div>
       )
     }
