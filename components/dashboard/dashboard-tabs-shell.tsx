@@ -8,6 +8,7 @@ import { CallLogsChart } from './call-logs-chart'
 import { LeadsTable } from './leads-table'
 import { FollowUpQueue } from './follow-up-queue'
 import { AppointmentsTable } from '@/app/dashboard/appointments/appointments-table'
+import { AppointmentsCalendar } from './appointments-calendar'
 import { SupportPageClient } from '@/components/support/support-page-client'
 import { cn } from '@/lib/utils'
 import type { Client } from '@/types/database'
@@ -131,76 +132,13 @@ export function DashboardTabsShell({ overviewContent, tenant }: DashboardTabsShe
 
     case '/dashboard/appointments': {
       if (!getTenantFeatures(tenant).showAppointments) return <>{overviewContent}</>
-      const bookings = ctx?.bookings ?? []
       const bookedCalls = (ctx?.calls ?? []).filter((c) => c.is_booked).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
       return (
-        <div className="p-3 sm:p-6 space-y-4 sm:space-y-5 animate-fade-in">
-          {/* Header with Google Calendar link */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg sm:text-xl font-semibold text-[var(--brand-text)]">Appointments</h1>
-              <p className="text-xs sm:text-sm text-[var(--brand-muted)] mt-0.5">{bookedCalls.length} booked appointments</p>
-            </div>
-            <a
-              href="https://calendar.google.com/calendar/u/4/r/week"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-xs font-medium text-[var(--brand-text)] hover:border-[var(--brand-primary)]/50 transition-colors"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              Open Google Calendar
-            </a>
-          </div>
-
-          {/* Booked appointments from call logs */}
-          {bookedCalls.length > 0 ? (
-            <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--brand-border)] bg-[var(--brand-bg)]">
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] uppercase tracking-wider">Patient</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] uppercase tracking-wider hidden sm:table-cell">Phone</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] uppercase tracking-wider">Date</th>
-                      <th className="text-right px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] uppercase tracking-wider">Value</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-medium text-[var(--brand-muted)] uppercase tracking-wider hidden md:table-cell">Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bookedCalls.map((call) => (
-                      <tr key={call.id} className="border-b border-[var(--brand-border)] last:border-0 hover:bg-[var(--brand-bg)]/50 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-[var(--brand-text)]">{call.caller_name || 'Unknown'}</div>
-                          <div className="text-[10px] text-[var(--brand-muted)] mt-0.5 line-clamp-1">{call.call_summary || call.semantic_title || ''}</div>
-                        </td>
-                        <td className="px-4 py-3 text-[var(--brand-muted)] hidden sm:table-cell">{call.caller_phone || '—'}</td>
-                        <td className="px-4 py-3 text-[var(--brand-muted)] whitespace-nowrap">{new Date(call.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
-                        <td className="px-4 py-3 text-right font-medium text-[var(--brand-text)]">{call.booked_value ? `$${call.booked_value}` : '—'}</td>
-                        <td className="px-4 py-3 hidden md:table-cell">
-                          <span className={cn(
-                            'text-[10px] font-medium px-2 py-0.5 rounded-full',
-                            call.direction === 'outbound'
-                              ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
-                              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          )}>
-                            {call.direction === 'outbound' ? 'Outbound' : 'Inbound'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
-
-          {/* Legacy bookings table (from bookings DB table) */}
-          {bookings.length > 0 && (
-            <AppointmentsTable
-              bookings={bookings as BookingRow[]}
-              tenantSlug={tenant.slug}
-            />
-          )}
+        <div className="p-3 sm:p-6 animate-fade-in">
+          <AppointmentsCalendar
+            bookedCalls={bookedCalls}
+            googleCalendarUrl="https://calendar.google.com/calendar/u/4/r/week"
+          />
         </div>
       )
     }

@@ -88,6 +88,14 @@ const NAV_ITEMS: NavItemDef[] = [
     isTabRoute: true,
   },
   {
+    labelFn: (t) => t.nav.appointments,
+    href: '/dashboard/appointments',
+    icon: CalendarCheck,
+    exact: true,
+    isTabRoute: true,
+    requiresFeature: 'showAppointments',
+  },
+  {
     labelFn: (t) => t.nav.callLogs,
     href: '/dashboard/call-logs',
     icon: Phone,
@@ -115,14 +123,6 @@ const NAV_ITEMS: NavItemDef[] = [
   //   followUpBadge: true,
   //   isTabRoute: true,
   // },
-  {
-    labelFn: (t) => t.nav.appointments,
-    href: '/dashboard/appointments',
-    icon: CalendarCheck,
-    exact: true,
-    isTabRoute: true,
-    requiresFeature: 'showAppointments',
-  },
   {
     labelFn: (t) => t.nav.conversations,
     href: '/dashboard/conversations',
