@@ -140,17 +140,14 @@ export function DashboardTabsShell({ overviewContent, tenant }: DashboardTabsShe
             <div className="px-4 py-3 border-b border-[var(--brand-border)]">
               <h2 className="text-sm font-semibold text-[var(--brand-text)]">Calendar</h2>
             </div>
-            <div className="w-full" style={{ height: 'min(70vh, 600px)' }}>
+            <div className="w-full" style={{ height: 'min(75vh, 700px)' }}>
               <iframe
-                src={calendarId
-                  ? `https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendarId)}&ctz=America/Edmonton&mode=WEEK&showTitle=0&showNav=1&showCalendars=0&showTabs=0`
-                  : 'https://calendar.google.com/calendar/embed?src=clientcare@liveyounger.ca&ctz=America/Edmonton&mode=WEEK&showTitle=0&showNav=1&showCalendars=0&showTabs=0'
-                }
+                src="https://calendar.google.com/calendar/u/4/r/week"
                 width="100%"
                 height="100%"
                 frameBorder="0"
-                scrolling="no"
-                className="bg-white dark:bg-gray-900"
+                className="bg-white"
+                allow="clipboard-read; clipboard-write"
               />
             </div>
           </div>
