@@ -619,11 +619,6 @@ export function DashboardTabs(props: DashboardTabsProps) {
       <CallDetailPanel log={selectedCall} onClose={() => setSelectedCall(null)} tenantSlug={tenant.slug} />
 
       <div className="flex flex-col min-h-0">
-        {/* Main tab navigation */}
-        <div className="px-4 sm:px-6 bg-[var(--brand-surface)] border-b border-[var(--brand-border)] transition-colors duration-200">
-          <TabBar tabs={mainTabs} active={tab} onSelect={setTab} />
-        </div>
-
         {/* Tab panels */}
         {tab === 'overview' && (
           <OverviewTab {...props} recentBookings={props.recentBookings} onSelectCall={setSelectedCall} />
