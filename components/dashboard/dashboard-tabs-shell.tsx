@@ -153,13 +153,13 @@ export function DashboardTabsShell({ overviewContent, tenant }: DashboardTabsShe
           </div>
 
           {/* Google Calendar embed — public calendar */}
-          <div className="rounded-xl border border-[var(--brand-border)] bg-white overflow-hidden">
+          <div className="rounded-xl border border-[var(--brand-border)] bg-white overflow-hidden -mx-3 sm:mx-0">
             <iframe
-              src={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendarEmail)}&ctz=America/Edmonton&mode=WEEK&showTitle=0&showNav=1&showCalendars=0&showTabs=1&showPrint=0&showDate=1`}
+              src={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(calendarEmail)}&ctz=America/Edmonton&mode=WEEK&showTitle=0&showNav=1&showCalendars=0&showTabs=1&showPrint=0&showDate=1&hl=en`}
               width="100%"
-              style={{ height: 'min(70vh, 650px)', minHeight: '400px' }}
+              style={{ height: 'calc(100vh - 140px)', minHeight: '500px' }}
               frameBorder="0"
-              scrolling="no"
+              scrolling="auto"
             />
           </div>
 
