@@ -30,6 +30,7 @@ export interface IngestResult {
   callLogId?: string
   eventType?: string
   error?: string
+  skipped?: string
 }
 
 type Obj = Record<string, unknown>
@@ -135,8 +136,14 @@ function truthy(obj: Obj, ...keys: string[]): boolean {
   return false
 }
 
-function normalizeCallToRow(payload: Obj, tenantId: string, originalPayload?: Obj): Obj {
+function normalizeCallToRow(payload: Obj, tenantId: string, originalPayload?: Obj): Obj | null {
   const meta = (payload.metadata ?? {}) as Obj
+  // Skip web calls — browser-based test calls from Retell dashboard
+  const callType = str(meta, 'call_type') ?? str(payload, 'call_type')
+  if (callType === 'web_call') {
+    return null
+  }
+
   const analysis = (payload.call_analysis ?? {}) as Obj
   const cad = (analysis.custom_analysis_data ?? {}) as Obj
   const dynVars = (payload.retell_llm_dynamic_variables ?? {}) as Obj
@@ -402,6 +409,7 @@ export async function handleRetellWebhook(
   // Normalize to DB row — pass unwrapped callPayload for field extraction,
   // and the original outer obj so raw_payload stores the full event envelope.
   const row = normalizeCallToRow(callPayload, tenantId, obj)
+  if (!row) return { ok: true, skipped: 'web_call' }
 
   // potential_revenue: only count positive-sentiment calls where we know the service
   // (negative/neutral calls are interest signals, not revenue commitments)
@@ -497,6 +505,7 @@ export async function ingestRetellCall(
 ): Promise<IngestResult> {
   const supabase = createSupabaseServerClient()
   const row = normalizeCallToRow(call as unknown as Obj, tenantId)
+  if (!row) return { ok: true, skipped: 'web_call' }
 
   // potential_revenue: only positive-sentiment calls
   const callObj = call as unknown as Obj
