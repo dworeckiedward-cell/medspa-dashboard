@@ -532,7 +532,16 @@ export async function ingestRetellCall(
       .single()
 
     if (error) {
-      return { ok: false, retellCallId: call.call_id, tenantId, error: error.message }
+      console.error('[ingestRetellCall] UPSERT ERROR', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        call_id: call.call_id,
+        tenantId,
+        row_keys: Object.keys(row),
+      })
+      return { ok: false, retellCallId: call.call_id, tenantId, error: `upsert: ${error.message}${error.details ? ` — ${error.details}` : ''}` }
     }
     const dur1 = typeof row.duration_seconds === 'number' ? row.duration_seconds : 0
     decrementWallet(supabase, tenantId, dur1)
@@ -546,7 +555,15 @@ export async function ingestRetellCall(
     .single()
 
   if (error) {
-    return { ok: false, retellCallId: call.call_id, tenantId, error: error.message }
+    console.error('[ingestRetellCall] INSERT ERROR', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      call_id: call.call_id,
+      tenantId,
+    })
+    return { ok: false, retellCallId: call.call_id, tenantId, error: `insert: ${error.message}${error.details ? ` — ${error.details}` : ''}` }
   }
   const dur2 = typeof row.duration_seconds === 'number' ? row.duration_seconds : 0
   decrementWallet(supabase, tenantId, dur2)

@@ -43,17 +43,27 @@ export async function POST(
   }
 
   try {
+    console.log('[call-logs/refresh] START', { callLogId: params.id, external_call_id: callLog.external_call_id, tenantId: tenant.id })
     const call = await getCall(callLog.external_call_id)
+    console.log('[call-logs/refresh] retell call fetched', {
+      call_id: call.call_id,
+      has_recording_url: !!call.recording_url,
+      recording_url: call.recording_url?.slice(0, 80),
+      duration_ms: call.duration_ms,
+    })
     const result = await ingestRetellCall(call, tenant.id)
+    console.log('[call-logs/refresh] ingest result', result)
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error ?? 'Ingest failed' }, { status: 500 })
+      console.error('[call-logs/refresh] INGEST FAILED', { error: result.error, callLogId: params.id, external_call_id: callLog.external_call_id })
+      return NextResponse.json({ error: result.error ?? 'Ingest failed', stage: 'ingest' }, { status: 500 })
     }
 
-    return NextResponse.json({ ok: true, callLogId: result.callLogId })
+    return NextResponse.json({ ok: true, callLogId: result.callLogId, recording_url: call.recording_url ?? null })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
-    console.error('[call-logs/refresh]', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    const stack = err instanceof Error ? err.stack : undefined
+    console.error('[call-logs/refresh] EXCEPTION', message, stack)
+    return NextResponse.json({ error: message, stage: 'exception' }, { status: 500 })
   }
 }

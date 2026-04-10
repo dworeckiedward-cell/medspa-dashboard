@@ -165,9 +165,17 @@ interface CallDetailPanelProps {
   tenantSlug?: string | null
 }
 
-export function CallDetailPanel({ log, onClose, onDeleted, tenantSlug }: CallDetailPanelProps) {
+export function CallDetailPanel({ log: initialLog, onClose, onDeleted, tenantSlug }: CallDetailPanelProps) {
   const router = useRouter()
   const ctx = useDashboardData()
+  // Re-derive log from the live dashboard cache so ctx.refresh() (triggered by
+  // "Refresh Call Recording") actually updates fields like recording_url here.
+  // Without this, selectedCall in parent components is a frozen snapshot taken
+  // at click time and the panel never sees the refreshed row.
+  const log = useMemo(
+    () => (initialLog ? ctx?.calls?.find((c) => c.id === initialLog.id) ?? initialLog : null),
+    [ctx?.calls, initialLog],
+  )
   const [transcriptOpen, setTranscriptOpen] = useState(false)
   const [transcriptSearch, setTranscriptSearch] = useState('')
   const [copied, setCopied] = useState(false)
@@ -217,12 +225,18 @@ export function CallDetailPanel({ log, onClose, onDeleted, tenantSlug }: CallDet
     setRefreshing(true)
     try {
       const res = await fetch(`/api/call-logs/${log.id}/refresh`, { method: 'POST' })
+      const body = await res.json().catch(() => ({}))
       if (res.ok) {
+        console.log('[refresh] OK', body)
         // Re-fetch dashboard data so recording_url and status update live
         ctx?.refresh()
+      } else {
+        console.error('[refresh] FAILED', res.status, body)
+        alert(`Refresh failed (${res.status}): ${body.error ?? 'unknown error'}`)
       }
-    } catch {
-      // silently fail
+    } catch (err) {
+      console.error('[refresh] EXCEPTION', err)
+      alert(`Refresh exception: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setRefreshing(false)
     }
